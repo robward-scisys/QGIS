@@ -62,7 +62,6 @@ scaled by 50% in order to have a constant visible size.
     QgsLayoutItemRenderContext( const QgsLayoutItemRenderContext &rh );
 };
 
-
 class QgsLayoutItem : QgsLayoutObject, QGraphicsRectItem, QgsLayoutUndoObjectInterface
 {
 %Docstring
@@ -86,6 +85,12 @@ Base class for graphical items within a :py:class:`QgsLayout`.
 #include "qgslayoutitempage.h"
 %End
 %ConvertToSubClassCode
+
+    // FREAKKKKIIN IMPORTANT!!!!!!!!!!!
+    // IF YOU PUT SOMETHING HERE, PUT IT IN QgsLayoutObject CASTING *****ALSO******
+    // (it's not enough for it to be in only one of the places, as sip inconsistently
+    // decides which casting code to perform here)
+
     // the conversions have to be static, because they're using multiple inheritance
     // (seen in PyQt4 .sip files for some QGraphicsItem classes)
     switch ( sipCpp->type() )
@@ -135,8 +140,11 @@ Base class for graphical items within a :py:class:`QgsLayout`.
         sipType = sipType_QgsLayoutFrame;
         *sipCppRet = static_cast<QgsLayoutFrame *>( sipCpp );
         break;
+
+      // did you read that comment above? NO? Go read it now. You're about to break stuff.
+
       default:
-        sipType = 0;
+        sipType = NULL;
     }
 %End
   public:
@@ -179,6 +187,7 @@ Base class for graphical items within a :py:class:`QgsLayout`.
       UndoMapGridAnnotationFontColor,
       UndoMapGridLineSymbol,
       UndoMapGridMarkerSymbol,
+      UndoMapLabelMargin,
       UndoPictureRotation,
       UndoPictureFillColor,
       UndoPictureStrokeColor,
@@ -230,6 +239,13 @@ Base class for graphical items within a :py:class:`QgsLayout`.
       UndoCustomCommand,
     };
 
+    enum Flag
+    {
+      FlagOverridesPaint,
+    };
+    typedef QFlags<QgsLayoutItem::Flag> Flags;
+
+
     explicit QgsLayoutItem( QgsLayout *layout, bool manageZValue = true );
 %Docstring
 Constructor for QgsLayoutItem, with the specified parent ``layout``.
@@ -271,6 +287,13 @@ upon creation.
 .. seealso:: :py:func:`id`
 
 .. seealso:: :py:func:`setId`
+%End
+
+    virtual Flags itemFlags() const;
+%Docstring
+Returns the item's flags, which indicate how the item behaves.
+
+.. versionadded:: 3.4.3
 %End
 
     QString id() const;
@@ -382,7 +405,7 @@ content. Derived classes must not override this method, but instead implement
 the pure virtual method QgsLayoutItem.draw.
 %End
 
-    void setReferencePoint( const ReferencePoint &point );
+    void setReferencePoint( ReferencePoint point );
 %Docstring
 Sets the reference ``point`` for positioning of the layout item. This point is also
 fixed during resizing of the item, and any size changes will be performed
@@ -661,7 +684,7 @@ Returns the frame's stroke color. This is only used if frameEnabled() returns tr
 .. seealso:: :py:func:`setFrameStrokeColor`
 %End
 
-    virtual void setFrameStrokeWidth( const QgsLayoutMeasurement &width );
+    virtual void setFrameStrokeWidth( QgsLayoutMeasurement width );
 %Docstring
 Sets the frame stroke ``width``.
 
@@ -948,7 +971,7 @@ If ``adjustPosition`` is false, rotation occurs around the item origin.
 .. seealso:: :py:func:`rotateItem`
 %End
 
-    virtual void rotateItem( double angle, const QPointF &transformOrigin );
+    virtual void rotateItem( double angle, QPointF transformOrigin );
 %Docstring
 Rotates the item by a specified ``angle`` in degrees clockwise around a specified reference point.
 
@@ -1031,7 +1054,7 @@ resized.
 .. seealso:: :py:func:`setFixedSize`
 %End
 
-    virtual QSizeF applyItemSizeConstraint( const QSizeF &targetSize );
+    virtual QSizeF applyItemSizeConstraint( QSizeF targetSize );
 %Docstring
 Applies any item-specific size constraint handling to a given ``targetSize`` in layout units.
 Subclasses can override this method if they need to apply advanced logic regarding item
@@ -1102,13 +1125,13 @@ after the frame color is set and a later call to update() must be made.
 Refresh item's blend mode, considering data defined blend mode.
 %End
 
-    QPointF adjustPointForReferencePosition( const QPointF &point, const QSizeF &size, const ReferencePoint &reference ) const;
+    QPointF adjustPointForReferencePosition( QPointF point, QSizeF size, ReferencePoint reference ) const;
 %Docstring
 Adjusts the specified ``point`` at which a ``reference`` position of the item
 sits and returns the top left corner of the item, if reference point were placed at the specified position.
 %End
 
-    QPointF positionAtReferencePoint( const ReferencePoint &reference ) const;
+    QPointF positionAtReferencePoint( ReferencePoint reference ) const;
 %Docstring
 Returns the current position (in layout units) of a ``reference`` point for the item.
 %End
@@ -1157,6 +1180,9 @@ Applies any present data defined size overrides to the specified layout ``size``
 %End
 
 };
+
+QFlags<QgsLayoutItem::Flag> operator|(QgsLayoutItem::Flag f1, QFlags<QgsLayoutItem::Flag> f2);
+
 
 
 

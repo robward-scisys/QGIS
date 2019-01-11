@@ -51,6 +51,7 @@ bool QgsLayerDefinition::loadLayerDefinition( const QString &path, QgsProject *p
 
   QgsReadWriteContext context;
   context.setPathResolver( QgsPathResolver( path ) );
+  context.setProjectTranslator( project );
 
   return loadLayerDefinition( doc, project, rootGroup, errorMessage, context );
 }
@@ -285,19 +286,20 @@ QList<QgsMapLayer *> QgsLayerDefinition::loadLayerDefinitionLayers( const QStrin
   QFile file( qlrfile );
   if ( !file.open( QIODevice::ReadOnly ) )
   {
-    QgsDebugMsg( "Can't open file" );
+    QgsDebugMsg( QStringLiteral( "Can't open file" ) );
     return QList<QgsMapLayer *>();
   }
 
   QDomDocument doc;
   if ( !doc.setContent( &file ) )
   {
-    QgsDebugMsg( "Can't set content" );
+    QgsDebugMsg( QStringLiteral( "Can't set content" ) );
     return QList<QgsMapLayer *>();
   }
 
   QgsReadWriteContext context;
   context.setPathResolver( QgsPathResolver( qlrfile ) );
+  //no project translator defined here
   return QgsLayerDefinition::loadLayerDefinitionLayers( doc, context );
 }
 

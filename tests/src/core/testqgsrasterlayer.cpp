@@ -341,7 +341,7 @@ void TestQgsRasterLayer::colorRamp3()
 void TestQgsRasterLayer::colorRamp4()
 {
   // cpt-city ramp, continuous
-  QgsCptCityColorRamp ramp( QStringLiteral( "grass/elevation" ), QLatin1String( "" ) );
+  QgsCptCityColorRamp ramp( QStringLiteral( "grass/elevation" ), QString() );
   QVERIFY( testColorRamp( "raster_colorRamp4",
                           &ramp,
                           QgsColorRampShader::Discrete, 10 ) );
@@ -794,6 +794,18 @@ void TestQgsRasterLayer::sample()
   QVERIFY( ok );
   QCOMPARE( rl->dataProvider()->sample( QgsPointXY( 17.943731, 30.230791 ), 2 ), 139.0 );
   QCOMPARE( rl->dataProvider()->sample( QgsPointXY( 17.943731, 30.230791 ), 3 ), 111.0 );
+
+  // src no data
+  rl->dataProvider()->setNoDataValue( 3, 111.0 );
+  ok = false;
+  QVERIFY( std::isnan( rl->dataProvider()->sample( QgsPointXY( 17.943731, 30.230791 ), 3, &ok ) ) );
+  QVERIFY( !ok );
+  rl->dataProvider()->setUseSourceNoDataValue( 3, false );
+  QCOMPARE( rl->dataProvider()->sample( QgsPointXY( 17.943731, 30.230791 ), 3 ), 111.0 );
+
+  rl->dataProvider()->setUserNoDataValue( 2, QgsRasterRangeList() << QgsRasterRange( 130, 140 ) );
+  QVERIFY( std::isnan( rl->dataProvider()->sample( QgsPointXY( 17.943731, 30.230791 ), 2, &ok ) ) );
+  QVERIFY( !ok );
 }
 
 QGSTEST_MAIN( TestQgsRasterLayer )

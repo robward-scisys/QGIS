@@ -18,6 +18,7 @@
 #include "qgssettings.h"
 
 #include <QFileInfo>
+#include <mutex>
 
 
 QgsMdalLayerItem::QgsMdalLayerItem( QgsDataItem *parent,
@@ -60,18 +61,14 @@ QGISEXTERN QgsDataItem *dataItem( QString path, QgsDataItem *parentItem )
   if ( !info.isFile() )
     return nullptr;
 
-  // get supported extensions
-  if ( sExtensions.isEmpty() )
+  static std::once_flag initialized;
+  std::call_once( initialized, [ = ]( )
   {
-    // TODO ask MDAL for extensions !
-    sExtensions << QStringLiteral( "2dm" )
-                << QStringLiteral( "grb" )
-                << QStringLiteral( "grb2" )
-                << QStringLiteral( "bin" )
-                << QStringLiteral( "grib" )
-                << QStringLiteral( "grib1" )
-                << QStringLiteral( "grib2" );
-  }
+    QStringList meshExtensions;
+    QStringList datasetsExtensions;
+    QgsMdalProvider::fileMeshExtensions( sExtensions, datasetsExtensions );
+    Q_UNUSED( datasetsExtensions );
+  } );
 
   // Filter files by extension
   if ( !sExtensions.contains( suffix ) )

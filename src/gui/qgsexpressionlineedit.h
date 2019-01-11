@@ -27,7 +27,7 @@ class QgsFilterLineEdit;
 class QToolButton;
 class QgsDistanceArea;
 class QgsExpressionContextGenerator;
-class QgsCodeEditorSQL;
+class QgsCodeEditorExpression;
 
 /**
  * \ingroup gui
@@ -79,6 +79,23 @@ class GUI_EXPORT QgsExpressionLineEdit : public QWidget
     void setMultiLine( bool multiLine );
 
     /**
+     * Returns the expected format string, which is shown in the expression builder dialog for the widget.
+     * This is purely a text format and no expression validation
+     * is done against it.
+     * \see setExpectedOutputFormat()
+     * \since QGIS 3.4
+     */
+    QString expectedOutputFormat() const;
+
+    /**
+     * Set the \a expected format string, which is shown in the expression builder dialog for the widget.
+     * This is purely a text format and no expression validation is done against it.
+     * \see expectedOutputFormat()
+     * \since QGIS 3.4
+     */
+    void setExpectedOutputFormat( const QString &expected );
+
+    /**
      * Set the geometry calculator used in the expression dialog.
      * \param distanceArea calculator
      */
@@ -101,8 +118,9 @@ class GUI_EXPORT QgsExpressionLineEdit : public QWidget
     QString expression() const;
 
     /**
-      * Returns true if the current expression is valid.
+      * Determines if the current expression is valid.
       * \param expressionError will be set to any generated error message if specified
+      * \returns true if the current expression is valid.
       */
     bool isValidExpression( QString *expressionError SIP_OUT = nullptr ) const;
 
@@ -153,13 +171,14 @@ class GUI_EXPORT QgsExpressionLineEdit : public QWidget
 
   private:
     QgsFilterLineEdit *mLineEdit = nullptr;
-    QgsCodeEditorSQL *mCodeEditor = nullptr;
+    QgsCodeEditorExpression *mCodeEditor = nullptr;
     QToolButton *mButton = nullptr;
     QString mExpressionDialogTitle;
     std::unique_ptr<QgsDistanceArea> mDa;
     QgsExpressionContext mExpressionContext;
     const QgsExpressionContextGenerator *mExpressionContextGenerator = nullptr;
     QgsVectorLayer *mLayer = nullptr;
+    QString mExpectedOutputFormat;
 
     bool isExpressionValid( const QString &expressionStr );
 

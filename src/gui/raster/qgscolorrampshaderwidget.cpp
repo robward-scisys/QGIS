@@ -61,7 +61,9 @@ QgsColorRampShaderWidget::QgsColorRampShaderWidget( QWidget *parent )
   contextMenu->addAction( tr( "Change Color…" ), this, SLOT( changeColor() ) );
   contextMenu->addAction( tr( "Change Opacity…" ), this, SLOT( changeOpacity() ) );
 
-  mColormapTreeWidget->setColumnWidth( ColorColumn, 50 );
+  mSwatchDelegate = new QgsColorSwatchDelegate( this );
+  mColormapTreeWidget->setItemDelegateForColumn( ColorColumn, mSwatchDelegate );
+  mColormapTreeWidget->setColumnWidth( ColorColumn, Qgis::UI_SCALE_FACTOR * fontMetrics().width( 'X' ) * 6.6 );
   mColormapTreeWidget->setContextMenuPolicy( Qt::CustomContextMenu );
   mColormapTreeWidget->setSelectionMode( QAbstractItemView::ExtendedSelection );
   connect( mColormapTreeWidget, &QTreeView::customContextMenuRequested, this, [ = ]( QPoint ) { contextMenu->exec( QCursor::pos() ); }
@@ -97,12 +99,12 @@ void QgsColorRampShaderWidget::initializeForUseWithRasterLayer()
 {
   Q_ASSERT( mClassificationModeComboBox->findData( QgsColorRampShader::Quantile < 0 ) );
   mClassificationModeComboBox->addItem( tr( "Quantile" ), QgsColorRampShader::Quantile );
-  mLoadFromBandButton->setVisible( bool( mRasterDataProvider ) ); // only for raster version
 }
 
 void QgsColorRampShaderWidget::setRasterDataProvider( QgsRasterDataProvider *dp )
 {
   mRasterDataProvider = dp;
+  mLoadFromBandButton->setVisible( bool( mRasterDataProvider ) ); // only for raster version
 }
 
 void QgsColorRampShaderWidget::setRasterBand( int band )
@@ -135,7 +137,7 @@ QgsColorRampShader QgsColorRampShaderWidget::shader() const
     }
     QgsColorRampShader::ColorRampItem newColorRampItem;
     newColorRampItem.value = currentItem->text( ValueColumn ).toDouble();
-    newColorRampItem.color = currentItem->background( ColorColumn ).color();
+    newColorRampItem.color = currentItem->data( ColorColumn, Qt::EditRole ).value<QColor>();
     newColorRampItem.label = currentItem->text( LabelColumn );
     colorRampItems.append( newColorRampItem );
   }
@@ -264,7 +266,7 @@ void QgsColorRampShaderWidget::mAddEntryButton_clicked()
 {
   QgsTreeWidgetItemObject *newItem = new QgsTreeWidgetItemObject( mColormapTreeWidget );
   newItem->setText( ValueColumn, QStringLiteral( "0" ) );
-  newItem->setBackground( ColorColumn, QBrush( QColor( Qt::magenta ) ) );
+  newItem->setData( ColorColumn, Qt::EditRole, QColor( Qt::magenta ) );
   newItem->setText( LabelColumn, QString() );
   newItem->setFlags( Qt::ItemIsEnabled | Qt::ItemIsEditable | Qt::ItemIsSelectable );
   connect( newItem, &QgsTreeWidgetItemObject::itemEdited,
@@ -325,7 +327,7 @@ void QgsColorRampShaderWidget::classify()
   {
     QgsTreeWidgetItemObject *newItem = new QgsTreeWidgetItemObject( mColormapTreeWidget );
     newItem->setText( ValueColumn, QString::number( it->value, 'g', 15 ) );
-    newItem->setBackground( ColorColumn, QBrush( it->color ) );
+    newItem->setData( ColorColumn, Qt::EditRole, it->color );
     newItem->setText( LabelColumn, it->label );
     newItem->setFlags( Qt::ItemIsEnabled | Qt::ItemIsEditable | Qt::ItemIsSelectable );
     connect( newItem, &QgsTreeWidgetItemObject::itemEdited,
@@ -379,7 +381,7 @@ void QgsColorRampShaderWidget::populateColormapTreeWidget( const QList<QgsColorR
   {
     QgsTreeWidgetItemObject *newItem = new QgsTreeWidgetItemObject( mColormapTreeWidget );
     newItem->setText( ValueColumn, QString::number( it->value, 'g', 15 ) );
-    newItem->setBackground( ColorColumn, QBrush( it->color ) );
+    newItem->setData( ColorColumn, Qt::EditRole, it->color );
     newItem->setText( LabelColumn, it->label );
     newItem->setFlags( Qt::ItemIsEnabled | Qt::ItemIsEditable | Qt::ItemIsSelectable );
     connect( newItem, &QgsTreeWidgetItemObject::itemEdited,
@@ -545,7 +547,7 @@ void QgsColorRampShaderWidget::mExportToFileButton_clicked()
         {
           continue;
         }
-        color = currentItem->background( ColorColumn ).color();
+        color = currentItem->data( ColorColumn, Qt::EditRole ).value<QColor>();
         outputStream << currentItem->text( ValueColumn ).toDouble() << ',';
         outputStream << color.red() << ',' << color.green() << ',' << color.blue() << ',' << color.alpha() << ',';
         if ( currentItem->text( LabelColumn ).isEmpty() )
@@ -580,10 +582,10 @@ void QgsColorRampShaderWidget::mColormapTreeWidget_itemDoubleClicked( QTreeWidge
   if ( column == ColorColumn )
   {
     item->setFlags( Qt::ItemIsEnabled | Qt::ItemIsSelectable );
-    QColor newColor = QgsColorDialog::getColor( item->background( column ).color(), this, QStringLiteral( "Change Color" ), true );
+    QColor newColor = QgsColorDialog::getColor( item->data( column, Qt::EditRole ).value<QColor>(), this, QStringLiteral( "Change Color" ), true );
     if ( newColor.isValid() )
     {
-      item->setBackground( ColorColumn, QBrush( newColor ) );
+      item->setData( ColorColumn, Qt::EditRole, newColor );
       loadMinimumMaximumFromTree();
       emit widgetChanged();
     }
@@ -635,13 +637,14 @@ void QgsColorRampShaderWidget::setFromShader( const QgsColorRampShader &colorRam
 
   mColorInterpolationComboBox->setCurrentIndex( mColorInterpolationComboBox->findData( colorRampShader.colorRampType() ) );
 
+  mColormapTreeWidget->clear();
   const QList<QgsColorRampShader::ColorRampItem> colorRampItemList = colorRampShader.colorRampItemList();
   QList<QgsColorRampShader::ColorRampItem>::const_iterator it = colorRampItemList.constBegin();
   for ( ; it != colorRampItemList.end(); ++it )
   {
     QgsTreeWidgetItemObject *newItem = new QgsTreeWidgetItemObject( mColormapTreeWidget );
     newItem->setText( ValueColumn, QString::number( it->value, 'g', 15 ) );
-    newItem->setBackground( ColorColumn, QBrush( it->color ) );
+    newItem->setData( ColorColumn, Qt::EditRole, it->color );
     newItem->setText( LabelColumn, it->label );
     newItem->setFlags( Qt::ItemIsEnabled | Qt::ItemIsEditable | Qt::ItemIsSelectable );
     connect( newItem, &QgsTreeWidgetItemObject::itemEdited,
@@ -752,13 +755,13 @@ void QgsColorRampShaderWidget::changeColor()
   }
   QTreeWidgetItem *firstItem = itemList.first();
 
-  QColor newColor = QgsColorDialog::getColor( firstItem->background( ColorColumn ).color(), this, QStringLiteral( "Change Color" ), true );
+  QColor newColor = QgsColorDialog::getColor( firstItem->data( ColorColumn, Qt::EditRole ).value<QColor>(), this, QStringLiteral( "Change Color" ), true );
   if ( newColor.isValid() )
   {
     Q_FOREACH ( QTreeWidgetItem *item, itemList )
     {
       item->setFlags( Qt::ItemIsEnabled | Qt::ItemIsSelectable );
-      item->setBackground( ColorColumn, QBrush( newColor ) );
+      item->setData( ColorColumn, Qt::EditRole, newColor );
     }
 
     loadMinimumMaximumFromTree();
@@ -777,16 +780,16 @@ void QgsColorRampShaderWidget::changeOpacity()
   QTreeWidgetItem *firstItem = itemList.first();
 
   bool ok;
-  double oldOpacity = firstItem->background( ColorColumn ).color().alpha() / 255 * 100;
+  double oldOpacity = firstItem->data( ColorColumn, Qt::EditRole ).value<QColor>().alpha() / 255 * 100;
   double opacity = QInputDialog::getDouble( this, tr( "Opacity" ), tr( "Change color opacity [%]" ), oldOpacity, 0.0, 100.0, 0, &ok );
   if ( ok )
   {
     int newOpacity = static_cast<int>( opacity / 100 * 255 );
     Q_FOREACH ( QTreeWidgetItem *item, itemList )
     {
-      QColor newColor = item->background( ColorColumn ).color();
+      QColor newColor = item->data( ColorColumn, Qt::EditRole ).value<QColor>();
       newColor.setAlpha( newOpacity );
-      item->setBackground( ColorColumn, QBrush( newColor ) );
+      item->setData( ColorColumn, Qt::EditRole, newColor );
     }
 
     loadMinimumMaximumFromTree();

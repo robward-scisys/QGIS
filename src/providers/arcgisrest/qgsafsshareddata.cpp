@@ -68,8 +68,10 @@ bool QgsAfsSharedData::getFeature( QgsFeatureId id, QgsFeature &f, const QgsRect
 
   // Query
   QString errorTitle, errorMessage;
+
+  const QString authcfg = mDataSource.authConfigId();
   const QVariantMap queryData = QgsArcGisRestUtils::getObjects(
-                                  mDataSource.param( QStringLiteral( "url" ) ), objectIds, mDataSource.param( QStringLiteral( "crs" ) ), true,
+                                  mDataSource.param( QStringLiteral( "url" ) ), authcfg, objectIds, mDataSource.param( QStringLiteral( "crs" ) ), true,
                                   fetchAttribNames, QgsWkbTypes::hasM( mGeometryType ), QgsWkbTypes::hasZ( mGeometryType ),
                                   filterRect, errorTitle, errorMessage, feedback );
 
@@ -100,7 +102,7 @@ bool QgsAfsSharedData::getFeature( QgsFeatureId id, QgsFeature &f, const QgsRect
       const QVariantMap attributesData = featureData[QStringLiteral( "attributes" )].toMap();
       feature.setFields( mFields );
       QgsAttributes attributes( mFields.size() );
-      foreach ( int idx, fetchAttribIdx )
+      for ( int idx : qgis::as_const( fetchAttribIdx ) )
       {
         QVariant attribute = attributesData[mFields.at( idx ).name()];
         if ( attribute.isNull() )
@@ -118,7 +120,7 @@ bool QgsAfsSharedData::getFeature( QgsFeatureId id, QgsFeature &f, const QgsRect
           QgsDebugMsg( QStringLiteral( "Invalid value %1 for field %2 of type %3" ).arg( attributesData[mFields.at( idx ).name()].toString(), mFields.at( idx ).name(), mFields.at( idx ).typeName() ) );
         }
         attributes[idx] = attribute;
-        if ( mFields.at( idx ).name() == QStringLiteral( "OBJECTID" ) )
+        if ( mFields.at( idx ).name() == mObjectIdFieldName )
         {
           featureId = startId + objectIds.indexOf( attributesData[mFields.at( idx ).name()].toInt() );
         }
@@ -156,10 +158,10 @@ QgsFeatureIds QgsAfsSharedData::getFeatureIdsInExtent( const QgsRectangle &exten
   QString errorTitle;
   QString errorText;
 
-
+  const QString authcfg = mDataSource.authConfigId();
   const QList<quint32> featuresInRect = QgsArcGisRestUtils::getObjectIdsByExtent( mDataSource.param( QStringLiteral( "url" ) ),
                                         mObjectIdFieldName,
-                                        extent, errorTitle, errorText, feedback );
+                                        extent, errorTitle, errorText, authcfg, feedback );
 
   QgsFeatureIds ids;
   for ( quint32 id : featuresInRect )

@@ -17,6 +17,7 @@
 
 #include "qgis.h"
 #include "qgsmeshlayer.h"
+#include "qgsmeshlayerutils.h"
 #include "qgsmessagelog.h"
 
 
@@ -32,22 +33,20 @@ QgsMeshRendererScalarSettingsWidget::QgsMeshRendererScalarSettingsWidget( QWidge
   connect( mScalarMinLineEdit, &QLineEdit::textEdited, this, &QgsMeshRendererScalarSettingsWidget::minMaxEdited );
   connect( mScalarMaxLineEdit, &QLineEdit::textEdited, this, &QgsMeshRendererScalarSettingsWidget::minMaxEdited );
   connect( mScalarColorRampShaderWidget, &QgsColorRampShaderWidget::widgetChanged, this, &QgsMeshRendererScalarSettingsWidget::widgetChanged );
-
+  connect( mOpacityWidget, &QgsOpacityWidget::opacityChanged, this, &QgsMeshRendererScalarSettingsWidget::widgetChanged );
 }
 
 void QgsMeshRendererScalarSettingsWidget::setLayer( QgsMeshLayer *layer )
 {
-  if ( layer != mMeshLayer )
-  {
-    mMeshLayer = layer;
-    syncToLayer();
-  }
+  mMeshLayer = layer;
 }
 
 QgsMeshRendererScalarSettings QgsMeshRendererScalarSettingsWidget::settings() const
 {
   QgsMeshRendererScalarSettings settings;
   settings.setColorRampShader( mScalarColorRampShaderWidget->shader() );
+  settings.setClassificationMinimumMaximum( lineEditValue( mScalarMinLineEdit ), lineEditValue( mScalarMaxLineEdit ) );
+  settings.setOpacity( mOpacityWidget->opacity() );
   return settings;
 }
 
@@ -56,13 +55,16 @@ void QgsMeshRendererScalarSettingsWidget::syncToLayer( )
   if ( !mMeshLayer )
     return;
 
-  if ( mMeshLayer->rendererScalarSettings().isEnabled() )
-  {
-    const QgsColorRampShader shader = mMeshLayer->rendererScalarSettings().colorRampShader();
-    whileBlocking( mScalarMinLineEdit )->setText( QString::number( shader.minimumValue() ) );
-    whileBlocking( mScalarMaxLineEdit )->setText( QString::number( shader.maximumValue() ) );
-    whileBlocking( mScalarColorRampShaderWidget )->setFromShader( shader );
-  }
+  if ( mActiveDatasetGroup < 0 )
+    return;
+
+  const QgsMeshRendererSettings rendererSettings = mMeshLayer->rendererSettings();
+  const QgsMeshRendererScalarSettings settings = rendererSettings.scalarSettings( mActiveDatasetGroup );
+  const QgsColorRampShader shader = settings.colorRampShader();
+  whileBlocking( mScalarMinLineEdit )->setText( QString::number( settings.classificationMinimum() ) );
+  whileBlocking( mScalarMaxLineEdit )->setText( QString::number( settings.classificationMaximum() ) );
+  whileBlocking( mScalarColorRampShaderWidget )->setFromShader( shader );
+  whileBlocking( mOpacityWidget )->setOpacity( settings.opacity() );
 }
 
 double QgsMeshRendererScalarSettingsWidget::lineEditValue( const QLineEdit *lineEdit ) const
@@ -91,55 +93,10 @@ void QgsMeshRendererScalarSettingsWidget::minMaxEdited()
 
 void QgsMeshRendererScalarSettingsWidget::recalculateMinMaxButtonClicked()
 {
-  double min, max;
-  calcMinMax( mActiveDataset, min, max );
+  const QgsMeshDatasetGroupMetadata metadata = mMeshLayer->dataProvider()->datasetGroupMetadata( mActiveDatasetGroup );
+  double min = metadata.minimum();
+  double max = metadata.maximum();
   whileBlocking( mScalarMinLineEdit )->setText( QString::number( min ) );
   whileBlocking( mScalarMaxLineEdit )->setText( QString::number( max ) );
   mScalarColorRampShaderWidget->setMinimumMaximumAndClassify( min, max );
-}
-
-void QgsMeshRendererScalarSettingsWidget::setActiveDataset( QgsMeshDatasetIndex activeDataset )
-{
-  mActiveDataset = activeDataset;
-}
-
-void QgsMeshRendererScalarSettingsWidget::calcMinMax( QgsMeshDatasetIndex datasetIndex, double &min, double &max ) const
-{
-  if ( !mMeshLayer )
-    return;
-
-  if ( !mMeshLayer->dataProvider() )
-    return;
-
-  const QgsMeshDatasetGroupMetadata metadata = mMeshLayer->dataProvider()->datasetGroupMetadata( datasetIndex );
-  bool scalarDataOnVertices = metadata.isOnVertices();
-  int count;
-  if ( scalarDataOnVertices )
-    count = mMeshLayer->dataProvider()->vertexCount();
-  else
-    count = mMeshLayer->dataProvider()->faceCount();
-
-  bool myFirstIterationFlag = true;
-  for ( int i = 0; i < count; ++i )
-  {
-    double myValue = mMeshLayer->dataProvider()->datasetValue( datasetIndex, i ).scalar();
-    if ( std::isnan( myValue ) ) continue; // NULL
-    if ( myFirstIterationFlag )
-    {
-      myFirstIterationFlag = false;
-      min = myValue;
-      max = myValue;
-    }
-    else
-    {
-      if ( myValue < min )
-      {
-        min = myValue;
-      }
-      if ( myValue > max )
-      {
-        max = myValue;
-      }
-    }
-  }
 }

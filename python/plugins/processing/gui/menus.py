@@ -33,6 +33,7 @@ from processing.gui.MessageDialog import MessageDialog
 from processing.gui.AlgorithmDialog import AlgorithmDialog
 from qgis.utils import iface
 from qgis.core import QgsApplication, QgsMessageLog, QgsStringUtils, QgsProcessingAlgorithm
+from qgis.gui import QgsGui
 from processing.gui.MessageBarProgress import MessageBarProgress
 from processing.gui.AlgorithmExecutor import execute
 from processing.gui.Postprocessing import handleAlgorithmResults
@@ -97,6 +98,7 @@ defaultMenuEntries.update({'native:reprojectlayer': managementToolsMenu,
 rasterMenu = QApplication.translate('MainWindow', '&Raster')
 projectionsMenu = rasterMenu + "/" + Processing.tr('Projections')
 defaultMenuEntries.update({'gdal:warpreproject': projectionsMenu,
+                           'gdal:extractprojection': projectionsMenu,
                            'gdal:assignprojection': projectionsMenu})
 conversionMenu = rasterMenu + "/" + Processing.tr('Conversion')
 defaultMenuEntries.update({'gdal:rasterize': conversionMenu,
@@ -183,10 +185,10 @@ def removeMenus():
 
 def addAlgorithmEntry(alg, menuName, submenuName, actionText=None, icon=None, addButton=False):
     if actionText is None:
-        if alg.flags() & QgsProcessingAlgorithm.FlagDisplayNameIsLiteral:
-            alg_title = alg.displayName()
-        else:
+        if (QgsGui.higFlags() & QgsGui.HigMenuTextIsTitleCase) and not (alg.flags() & QgsProcessingAlgorithm.FlagDisplayNameIsLiteral):
             alg_title = QgsStringUtils.capitalize(alg.displayName(), QgsStringUtils.TitleCase)
+        else:
+            alg_title = alg.displayName()
         actionText = alg_title + QCoreApplication.translate('Processing', '…')
     action = QAction(icon or alg.icon(), actionText, iface.mainWindow())
     alg_id = alg.id()
@@ -203,6 +205,7 @@ def addAlgorithmEntry(alg, menuName, submenuName, actionText=None, icon=None, ad
         global algorithmsToolbar
         if algorithmsToolbar is None:
             algorithmsToolbar = iface.addToolBar(QCoreApplication.translate('MainWindow', 'Processing Algorithms'))
+            algorithmsToolbar.setObjectName("ProcessingAlgorithms")
             algorithmsToolbar.setToolTip(QCoreApplication.translate('MainWindow', 'Processing Algorithms Toolbar'))
         algorithmsToolbar.addAction(action)
 
@@ -247,9 +250,9 @@ def _executeAlgorithm(alg_id):
         return
 
     if (alg.countVisibleParameters()) > 0:
-        dlg = alg.createCustomParametersWidget(None)
+        dlg = alg.createCustomParametersWidget(parent=iface.mainWindow())
         if not dlg:
-            dlg = AlgorithmDialog(alg)
+            dlg = AlgorithmDialog(alg, parent=iface.mainWindow())
         canvas = iface.mapCanvas()
         prevMapTool = canvas.mapTool()
         dlg.show()

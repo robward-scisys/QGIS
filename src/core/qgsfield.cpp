@@ -23,6 +23,7 @@
 #include <QDataStream>
 #include <QIcon>
 #include <QLocale>
+#include <QJsonDocument>
 
 /***************************************************************************
  * This class is considered CRITICAL and any change MUST be accompanied with
@@ -253,6 +254,15 @@ QString QgsField::displayString( const QVariant &v ) const
     if ( ok )
       return QLocale().toString( converted );
   }
+  else if ( d->typeName.compare( QLatin1String( "json" ), Qt::CaseInsensitive ) == 0 || d->typeName == QLatin1String( "jsonb" ) )
+  {
+    QJsonDocument doc = QJsonDocument::fromVariant( v );
+    return QString::fromUtf8( doc.toJson().data() );
+  }
+  else if ( d->type == QVariant::ByteArray )
+  {
+    return QObject::tr( "BLOB" );
+  }
   // Fallback if special rules do not apply
   return v.toString();
 }
@@ -285,8 +295,8 @@ bool QgsField::convertCompatible( QVariant &v ) const
     if ( !tmp.convert( d->type ) )
     {
       // This might be a string with thousand separator: use locale to convert
-      bool ok;
-      double d = QLocale().toDouble( v.toString(), &ok );
+      bool ok = false;
+      double d = qgsPermissiveToDouble( v.toString(), ok );
       if ( ok )
       {
         v = QVariant( d );
@@ -295,7 +305,7 @@ bool QgsField::convertCompatible( QVariant &v ) const
       // For not 'dot' locales, we also want to accept '.'
       if ( QLocale().decimalPoint() != '.' )
       {
-        d = QLocale( QLocale::English ).toDouble( v.toString(), &ok );
+        d = QLocale( QLocale::C ).toDouble( v.toString(), &ok );
         if ( ok )
         {
           v = QVariant( d );
@@ -313,7 +323,7 @@ bool QgsField::convertCompatible( QVariant &v ) const
     {
       // This might be a string with thousand separator: use locale to convert
       bool ok;
-      int i = QLocale().toInt( v.toString(), &ok );
+      int i = qgsPermissiveToInt( v.toString(), ok );
       if ( ok )
       {
         v = QVariant( i );
@@ -330,7 +340,7 @@ bool QgsField::convertCompatible( QVariant &v ) const
     {
       // This might be a string with thousand separator: use locale to convert
       bool ok;
-      qlonglong l = QLocale().toLongLong( v.toString(), &ok );
+      qlonglong l = qgsPermissiveToLongLong( v.toString(), ok );
       if ( ok )
       {
         v = QVariant( l );

@@ -1,10 +1,10 @@
 /***************************************************************************
-                             qgslayoutitempicture.h
-                             -------------------
-    begin                : October 2017
-    copyright            : (C) 2017 by Nyall Dawson
-    email                : nyall dot dawson at gmail dot com
- ***************************************************************************/
+                         qgslayoutitempicture.h
+                         -------------------
+begin                : October 2017
+copyright            : (C) 2017 by Nyall Dawson
+email                : nyall dot dawson at gmail dot com
+***************************************************************************/
 
 /***************************************************************************
  *                                                                         *
@@ -259,7 +259,6 @@ class CORE_EXPORT QgsLayoutItemPicture: public QgsLayoutItem
     void recalculateSize();
 
     void refreshDataDefinedProperty( QgsLayoutObject::DataDefinedProperty property = QgsLayoutObject::AllProperties ) override;
-    bool containsAdvancedEffects() const override;
 
   signals:
     //! Is emitted on picture rotation change
@@ -268,7 +267,7 @@ class CORE_EXPORT QgsLayoutItemPicture: public QgsLayoutItem
   protected:
 
     void draw( QgsLayoutItemRenderContext &context ) override;
-    QSizeF applyItemSizeConstraint( const QSizeF &targetSize ) override;
+    QSizeF applyItemSizeConstraint( QSizeF targetSize ) override;
     bool writePropertiesToElement( QDomElement &element, QDomDocument &document, const QgsReadWriteContext &context ) const override;
     bool readPropertiesFromElement( const QDomElement &element, const QDomDocument &document, const QgsReadWriteContext &context ) override;
 

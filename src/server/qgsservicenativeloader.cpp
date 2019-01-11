@@ -22,9 +22,7 @@
 #include <QDebug>
 
 #include "qgsservicenativeloader.h"
-#include "qgsserviceregistry.h"
 #include "qgsservicemodule.h"
-#include "qgslogger.h"
 #include "qgsmessagelog.h"
 #include "qgis.h"
 
@@ -68,9 +66,9 @@ void QgsServiceNativeLoader::loadModules( const QString &modulePath, QgsServiceR
 #endif
 
   qDebug() << QString( "Checking %1 for native services modules" ).arg( moduleDir.path() );
-  //QgsDebugMsg( QString( "Checking %1 for native services modules" ).arg( moduleDir.path() ) );
+  //QgsDebugMsg( QStringLiteral( "Checking %1 for native services modules" ).arg( moduleDir.path() ) );
 
-  Q_FOREACH ( const QFileInfo &fi, moduleDir.entryInfoList() )
+  for ( const QFileInfo &fi : moduleDir.entryInfoList() )
   {
     QgsServiceModule *module = loadNativeModule( fi.filePath() );
     if ( module )
@@ -93,7 +91,7 @@ QgsServiceModule *QgsServiceNativeLoader::loadNativeModule( const QString &locat
   }
 
   QLibrary lib( location );
-  //QgsDebugMsg( QString( "Loading native module %1" ).arg( location ) );
+  //QgsDebugMsg( QStringLiteral( "Loading native module %1" ).arg( location ) );
   qDebug() << QString( "Loading native module %1" ).arg( location );
   if ( !lib.load() )
   {

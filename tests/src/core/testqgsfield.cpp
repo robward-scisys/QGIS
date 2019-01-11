@@ -333,9 +333,7 @@ void TestQgsField::displayString()
   QgsField doubleFieldNoPrec( QStringLiteral( "double" ), QVariant::Double, QStringLiteral( "double" ), 10 );
   QCOMPARE( doubleFieldNoPrec.displayString( 5.005005 ), QString( "5.005005" ) );
   QCOMPARE( doubleFieldNoPrec.displayString( 5.005005005 ), QString( "5.005005005" ) );
-#if QT_VERSION >= 0x050700
   QCOMPARE( QLocale().numberOptions() & QLocale::NumberOption::OmitGroupSeparator, QLocale::NumberOption::DefaultNumberOptions );
-#endif
   QCOMPARE( doubleFieldNoPrec.displayString( 599999898999.0 ), QString( "599,999,898,999" ) );
 
   //test NULL double
@@ -386,6 +384,11 @@ void TestQgsField::displayString()
   QCOMPARE( longField.displayString( 5 ), QString( "5" ) );
   QCOMPARE( longField.displayString( 599999898999LL ), QString( "599999898999" ) );
 
+  // binary field
+  QgsField binaryField( QStringLiteral( "binary" ), QVariant::ByteArray, QStringLiteral( "Binary" ) );
+  QString testBAString( QStringLiteral( "test string" ) );
+  QByteArray testBA( testBAString.toLocal8Bit() );
+  QCOMPARE( binaryField.displayString( testBA ), QStringLiteral( "BLOB" ) );
 }
 
 void TestQgsField::convertCompatible()
@@ -607,6 +610,12 @@ void TestQgsField::convertCompatible()
   QCOMPARE( stringDouble.type(), QVariant::Double );
   QCOMPARE( stringDouble, QVariant( 1223456.012345 ) );
 
+  // Test that wrongly formatted decimal separator are also accepted
+  QLocale::setDefault( QLocale::German );
+  stringDouble = QVariant( "12.23.456,012345" );
+  QVERIFY( doubleField.convertCompatible( stringDouble ) );
+  QCOMPARE( stringDouble.type(), QVariant::Double );
+  QCOMPARE( stringDouble, QVariant( 1223456.012345 ) );
 
 }
 

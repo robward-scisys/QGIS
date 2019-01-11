@@ -16,6 +16,8 @@
  ***************************************************************************/
 
 #include "qgsalgorithmbuffer.h"
+#include "qgswkbtypes.h"
+#include "qgsvectorlayer.h"
 
 ///@cond PRIVATE
 
@@ -79,7 +81,7 @@ QgsBufferAlgorithm *QgsBufferAlgorithm::createInstance() const
 
 QVariantMap QgsBufferAlgorithm::processAlgorithm( const QVariantMap &parameters, QgsProcessingContext &context, QgsProcessingFeedback *feedback )
 {
-  std::unique_ptr< QgsFeatureSource > source( parameterAsSource( parameters, QStringLiteral( "INPUT" ), context ) );
+  std::unique_ptr< QgsProcessingFeatureSource > source( parameterAsSource( parameters, QStringLiteral( "INPUT" ), context ) );
   if ( !source )
     throw QgsProcessingException( invalidSourceError( parameters, QStringLiteral( "INPUT" ) ) );
 
@@ -96,7 +98,7 @@ QVariantMap QgsBufferAlgorithm::processAlgorithm( const QVariantMap &parameters,
   double miterLimit = parameterAsDouble( parameters, QStringLiteral( "MITER_LIMIT" ), context );
   double bufferDistance = parameterAsDouble( parameters, QStringLiteral( "DISTANCE" ), context );
   bool dynamicBuffer = QgsProcessingParameters::isDynamic( parameters, QStringLiteral( "DISTANCE" ) );
-  QgsExpressionContext expressionContext = createExpressionContext( parameters, context, dynamic_cast< QgsProcessingFeatureSource * >( source.get() ) );
+  QgsExpressionContext expressionContext = createExpressionContext( parameters, context, source.get() );
   QgsProperty bufferProperty;
   if ( dynamicBuffer )
   {
@@ -106,7 +108,8 @@ QVariantMap QgsBufferAlgorithm::processAlgorithm( const QVariantMap &parameters,
   long count = source->featureCount();
 
   QgsFeature f;
-  QgsFeatureIterator it = source->getFeatures();
+  // buffer doesn't care about invalid features, and buffering can be used to repair geometries
+  QgsFeatureIterator it = source->getFeatures( QgsFeatureRequest(), QgsProcessingFeatureSource::FlagSkipGeometryValidityChecks );
 
   double step = count > 0 ? 100.0 / count : 1;
   int current = 0;
@@ -134,7 +137,7 @@ QVariantMap QgsBufferAlgorithm::processAlgorithm( const QVariantMap &parameters,
       }
 
       QgsGeometry outputGeometry = f.geometry().buffer( distance, segments, endCapStyle, joinStyle, miterLimit );
-      if ( !outputGeometry )
+      if ( outputGeometry.isNull() )
       {
         QgsMessageLog::logMessage( QObject::tr( "Error calculating buffer for feature %1" ).arg( f.id() ), QObject::tr( "Processing" ), Qgis::Warning );
       }
@@ -163,6 +166,22 @@ QVariantMap QgsBufferAlgorithm::processAlgorithm( const QVariantMap &parameters,
   QVariantMap outputs;
   outputs.insert( QStringLiteral( "OUTPUT" ), dest );
   return outputs;
+}
+
+QgsProcessingAlgorithm::Flags QgsBufferAlgorithm::flags() const
+{
+  Flags f = QgsProcessingAlgorithm::flags();
+  f |= QgsProcessingAlgorithm::FlagSupportsInPlaceEdits;
+  return f;
+}
+
+bool QgsBufferAlgorithm::supportInPlaceEdit( const QgsMapLayer *layer ) const
+{
+  const QgsVectorLayer *vlayer = qobject_cast< const QgsVectorLayer * >( layer );
+  if ( !vlayer )
+    return false;
+  //Only Polygons
+  return vlayer->wkbType() == QgsWkbTypes::Type::Polygon || vlayer->wkbType() == QgsWkbTypes::Type::MultiPolygon;
 }
 
 ///@endcond

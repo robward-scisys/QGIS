@@ -64,6 +64,7 @@ from processing.script.ScriptAlgorithmProvider import ScriptAlgorithmProvider  #
 
 # should be loaded last - ensures that all dependent algorithms are available when loading models
 from processing.modeler.ModelerAlgorithmProvider import ModelerAlgorithmProvider  # NOQA
+from processing.modeler.ProjectProvider import ProjectProvider # NOQA
 
 
 class Processing(object):
@@ -92,7 +93,8 @@ class Processing(object):
             GdalAlgorithmProvider,
             SagaAlgorithmProvider,
             ScriptAlgorithmProvider,
-            ModelerAlgorithmProvider
+            ModelerAlgorithmProvider,
+            ProjectProvider
         ]:
             p = c()
             if QgsApplication.processingRegistry().addProvider(p):
@@ -123,14 +125,6 @@ class Processing(object):
             msg = Processing.tr('Error: Algorithm {0} not found\n').format(algOrName)
             feedback.reportError(msg)
             raise QgsProcessingException(msg)
-
-        # check for any mandatory parameters which were not specified
-        for param in alg.parameterDefinitions():
-            if param.name() not in parameters:
-                if not param.flags() & QgsProcessingParameterDefinition.FlagOptional:
-                    msg = Processing.tr('Error: Missing parameter value for parameter {0}.').format(param.name())
-                    feedback.reportError(msg)
-                    raise QgsProcessingException(msg)
 
         if context is None:
             context = dataobjects.createContext(feedback)

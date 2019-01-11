@@ -26,6 +26,7 @@
 #include <qgsrulebasedrenderer.h>
 #include <qgslayertreemodel.h>
 #include <qgslayertreemodellegendnode.h>
+#include <qgslayertreeutils.h>
 
 class TestQgsLayerTree : public QObject
 {
@@ -49,6 +50,9 @@ class TestQgsLayerTree : public QObject
     void testEmbeddedGroup();
     void testFindLayer();
     void testLayerDeleted();
+    void testFindGroups();
+    void testUtilsCollectMapLayers();
+    void testUtilsCountMapLayers();
 
   private:
 
@@ -634,6 +638,73 @@ void TestQgsLayerTree::testLayerDeleted()
   project.removeMapLayer( vl );
 
   QCOMPARE( model.layerLegendNodes( tl ).count(), 0 );
+}
+
+void TestQgsLayerTree::testFindGroups()
+{
+  QgsProject project;
+  QgsLayerTreeGroup *group1 = project.layerTreeRoot()->addGroup( QStringLiteral( "Group_One" ) );
+  QVERIFY( group1 );
+  QgsLayerTreeGroup *group2 = project.layerTreeRoot()->addGroup( QStringLiteral( "Group_Two" ) );
+  QVERIFY( group2 );
+  QgsLayerTreeGroup *group3 = project.layerTreeRoot()->addGroup( QStringLiteral( "Group_Three" ) );
+  QVERIFY( group3 );
+
+  QgsLayerTreeGroup *group = project.layerTreeRoot()->findGroup( QStringLiteral( "Group_One" ) );
+  QVERIFY( group );
+  group = project.layerTreeRoot()->findGroup( QStringLiteral( "Group_Two" ) );
+  QVERIFY( group );
+  group = project.layerTreeRoot()->findGroup( QStringLiteral( "Group_Three" ) );
+  QVERIFY( group );
+
+  QList<QgsLayerTreeGroup *> groups = project.layerTreeRoot()->findGroups();
+
+  QVERIFY( groups.contains( group1 ) );
+  QVERIFY( groups.contains( group2 ) );
+  QVERIFY( groups.contains( group3 ) );
+}
+
+void TestQgsLayerTree::testUtilsCollectMapLayers()
+{
+  QgsVectorLayer *vl1 = new QgsVectorLayer( QStringLiteral( "Point?field=col1:integer" ), QStringLiteral( "vl1" ), QStringLiteral( "memory" ) );
+  QgsVectorLayer *vl2 = new QgsVectorLayer( QStringLiteral( "Point?field=col1:integer" ), QStringLiteral( "vl1" ), QStringLiteral( "memory" ) );
+
+  QgsProject project;
+  project.addMapLayer( vl1 );
+  project.addMapLayer( vl2 );
+
+  QgsLayerTree root;
+  QgsLayerTreeLayer *nodeVl1 = root.addLayer( vl1 );
+  QgsLayerTreeGroup *nodeGrp = root.addGroup( "grp" );
+  QgsLayerTreeLayer *nodeVl2 = nodeGrp->addLayer( vl2 );
+  Q_UNUSED( nodeVl2 );
+
+  QSet<QgsMapLayer *> set1 = QgsLayerTreeUtils::collectMapLayersRecursive( QList<QgsLayerTreeNode *>() << &root );
+  QSet<QgsMapLayer *> set2 = QgsLayerTreeUtils::collectMapLayersRecursive( QList<QgsLayerTreeNode *>() << nodeVl1 );
+  QSet<QgsMapLayer *> set3 = QgsLayerTreeUtils::collectMapLayersRecursive( QList<QgsLayerTreeNode *>() << nodeGrp );
+
+  QCOMPARE( set1, QSet<QgsMapLayer *>() << vl1 << vl2 );
+  QCOMPARE( set2, QSet<QgsMapLayer *>() << vl1 );
+  QCOMPARE( set3, QSet<QgsMapLayer *>() << vl2 );
+}
+
+void TestQgsLayerTree::testUtilsCountMapLayers()
+{
+  QgsVectorLayer *vl = new QgsVectorLayer( QStringLiteral( "Point?field=col1:integer" ), QStringLiteral( "vl" ), QStringLiteral( "memory" ) );
+
+  QgsProject project;
+  project.addMapLayer( vl );
+
+  QgsLayerTree root;
+  QgsLayerTreeGroup *nodeGrp = root.addGroup( "grp" );
+
+  QCOMPARE( QgsLayerTreeUtils::countMapLayerInTree( &root, vl ), 0 );
+
+  root.addLayer( vl );
+  QCOMPARE( QgsLayerTreeUtils::countMapLayerInTree( &root, vl ), 1 );
+
+  nodeGrp->addLayer( vl );
+  QCOMPARE( QgsLayerTreeUtils::countMapLayerInTree( &root, vl ), 2 );
 }
 
 

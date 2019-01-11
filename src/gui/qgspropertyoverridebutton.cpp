@@ -119,12 +119,12 @@ void QgsPropertyOverrideButton::init( int propertyKey, const QgsProperty &proper
   {
     case QgsPropertyDefinition::DataTypeBoolean:
       ts << tr( "boolean" );
-      FALLTHROUGH;
+      FALLTHROUGH
 
     case QgsPropertyDefinition::DataTypeNumeric:
       ts << tr( "int" );
       ts << tr( "double" );
-      FALLTHROUGH;
+      FALLTHROUGH
 
     case QgsPropertyDefinition::DataTypeString:
       ts << tr( "string" );
@@ -155,7 +155,8 @@ void QgsPropertyOverrideButton::updateFieldLists()
   if ( mVectorLayer )
   {
     // store just a list of fields of unknown type or those that match the expected type
-    Q_FOREACH ( const QgsField &f, mVectorLayer->fields() )
+    const QgsFields fields = mVectorLayer->fields();
+    for ( const QgsField &f : fields )
     {
       bool fieldMatch = false;
       QString fieldType;

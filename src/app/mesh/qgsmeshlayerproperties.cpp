@@ -31,6 +31,7 @@
 #include "qgsprojectionselectiondialog.h"
 #include "qgsrenderermeshpropertieswidget.h"
 #include "qgssettings.h"
+#include "qgsproviderregistry.h"
 
 #include <QFileDialog>
 #include <QMessageBox>
@@ -84,7 +85,7 @@ void QgsMeshLayerProperties::syncToLayer()
 {
   Q_ASSERT( mRendererMeshPropertiesWidget );
 
-  QgsDebugMsg( "populate general information tab" );
+  QgsDebugMsg( QStringLiteral( "populate general information tab" ) );
   /*
    * Information Tab
    */
@@ -104,7 +105,7 @@ void QgsMeshLayerProperties::syncToLayer()
   }
   mInformationTextBrowser->setText( info );
 
-  QgsDebugMsg( "populate source tab" );
+  QgsDebugMsg( QStringLiteral( "populate source tab" ) );
   /*
    * Source Tab
    */
@@ -120,7 +121,7 @@ void QgsMeshLayerProperties::syncToLayer()
     mUriLabel->setText( tr( "Not assigned" ) );
   }
 
-  QgsDebugMsg( "populate styling tab" );
+  QgsDebugMsg( QStringLiteral( "populate styling tab" ) );
   /*
    * Styling Tab
    */
@@ -137,7 +138,7 @@ void QgsMeshLayerProperties::addDataset()
   QString openFileString = QFileDialog::getOpenFileName( nullptr,
                            tr( "Load mesh datasets" ),
                            openFileDir,
-                           QStringLiteral( "All files(*.*);;Results Files XMDF(*.xmdf);;Results Files DAT(*.dat)" ) );
+                           QgsProviderRegistry::instance()->fileMeshDatasetFilters() );
 
   if ( openFileString.isEmpty() )
   {
@@ -164,13 +165,13 @@ void QgsMeshLayerProperties::apply()
 {
   Q_ASSERT( mRendererMeshPropertiesWidget );
 
-  QgsDebugMsg( "processing general tab" );
+  QgsDebugMsg( QStringLiteral( "processing general tab" ) );
   /*
    * General Tab
    */
   mMeshLayer->setName( mLayerOrigNameLineEd->text() );
 
-  QgsDebugMsg( "processing style tab" );
+  QgsDebugMsg( QStringLiteral( "processing style tab" ) );
   /*
    * Style Tab
    */

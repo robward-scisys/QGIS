@@ -18,7 +18,6 @@
 #ifndef QGSSPATIALINDEXKDBUSH_H
 #define QGSSPATIALINDEXKDBUSH_H
 
-class QgsPointXY;
 class QgsFeatureIterator;
 class QgsFeedback;
 class QgsFeatureSource;
@@ -26,10 +25,11 @@ class QgsSpatialIndexKDBushPrivate;
 class QgsRectangle;
 
 #include "qgis_core.h"
-#include "qgsfeature.h"
 #include "qgsspatialindexkdbushdata.h"
+#include "qgspointxy.h"
 #include <memory>
 #include <QList>
+#include <functional>
 
 /**
  * \class QgsSpatialIndexKDBush

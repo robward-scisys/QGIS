@@ -65,6 +65,7 @@ class hillshade(GdalAlgorithm):
         self.addParameter(QgsProcessingParameterRasterLayer(self.INPUT, self.tr('Input layer')))
         self.addParameter(QgsProcessingParameterBand(self.BAND,
                                                      self.tr('Band number'),
+                                                     1,
                                                      parentLayerParameterName=self.INPUT))
         self.addParameter(QgsProcessingParameterNumber(self.Z_FACTOR,
                                                        self.tr('Z factor (vertical exaggeration)'),
@@ -101,7 +102,7 @@ class hillshade(GdalAlgorithm):
                                                         defaultValue=False))
 
         options_param = QgsProcessingParameterString(self.OPTIONS,
-                                                     self.tr('Additional creation parameters'),
+                                                     self.tr('Additional creation options'),
                                                      defaultValue='',
                                                      optional=True)
         options_param.setFlags(options_param.flags() | QgsProcessingParameterDefinition.FlagAdvanced)

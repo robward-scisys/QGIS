@@ -35,20 +35,12 @@ bool QgsOgrTransaction::beginTransaction( QString &error, int /* statementTimeou
 
 bool QgsOgrTransaction::commitTransaction( QString &error )
 {
-  if ( executeSql( QStringLiteral( "COMMIT" ), error ) )
-  {
-    return true;
-  }
-  return false;
+  return executeSql( QStringLiteral( "COMMIT" ), error );
 }
 
 bool QgsOgrTransaction::rollbackTransaction( QString &error )
 {
-  if ( executeSql( QStringLiteral( "ROLLBACK" ), error ) )
-  {
-    return true;
-  }
-  return false;
+  return executeSql( QStringLiteral( "ROLLBACK" ), error );
 }
 
 bool QgsOgrTransaction::executeSql( const QString &sql, QString &errorMsg, bool isDirty, const QString &name )
@@ -60,7 +52,7 @@ bool QgsOgrTransaction::executeSql( const QString &sql, QString &errorMsg, bool 
     createSavepoint( err );
   }
 
-  QgsDebugMsg( QString( "Transaction sql: %1" ).arg( sql ) );
+  QgsDebugMsg( QStringLiteral( "Transaction sql: %1" ).arg( sql ) );
   if ( !mSharedDS->executeSQLNoReturn( sql ) )
   {
     errorMsg = CPLGetLastErrorMsg();
@@ -80,6 +72,6 @@ bool QgsOgrTransaction::executeSql( const QString &sql, QString &errorMsg, bool 
     emit dirtied( sql, name );
   }
 
-  QgsDebugMsg( QString( "... ok" ) );
+  QgsDebugMsg( QStringLiteral( "... ok" ) );
   return true;
 }

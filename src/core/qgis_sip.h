@@ -198,6 +198,25 @@
 #define SIP_DOC_TEMPLATE
 
 /*
+ * Specifies the type of the value returned by the function as it will appear in any
+ * generated docstrings and PEP 484 type hints. It is usually used with results of type
+ * SIP_PYOBJECT to provide a more specific type.
+ * Available for SIP 4.18+
+ */
+#define SIP_TYPEHINT(type)
+
+/*
+ * Sip supports the final keyword since version 4.19.0, earlier than that
+ * we will have build issues because it tries to override final methods.
+ */
+#if SIP_VERSION < 0x041300
+#if defined FINAL
+#undef FINAL
+#endif
+#define FINAL override
+#endif
+
+/*
  * Define Python special method (bool, repr, etc.) using the given method or code
  * sipify.pl will create a dedicated python file named according to the class
  * and located in python/{module}/auto_additions/{classname}.py

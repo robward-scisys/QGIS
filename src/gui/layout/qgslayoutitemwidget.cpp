@@ -81,7 +81,7 @@ void QgsLayoutConfigObject::initializeDataDefinedButton( QgsPropertyOverrideButt
 {
   button->blockSignals( true );
   button->init( key, mLayoutObject->dataDefinedProperties(), QgsLayoutObject::propertyDefinitions(), coverageLayer() );
-  connect( button, &QgsPropertyOverrideButton::changed, this, &QgsLayoutConfigObject::updateDataDefinedProperty );
+  connect( button, &QgsPropertyOverrideButton::changed, this, &QgsLayoutConfigObject::updateDataDefinedProperty, Qt::UniqueConnection );
   button->registerExpressionContextGenerator( mLayoutObject );
   button->blockSignals( false );
 }
@@ -96,6 +96,10 @@ void QgsLayoutConfigObject::updateDataDefinedButton( QgsPropertyOverrideButton *
 
   QgsLayoutObject::DataDefinedProperty key = static_cast< QgsLayoutObject::DataDefinedProperty >( button->propertyKey() );
   whileBlocking( button )->setToProperty( mLayoutObject->dataDefinedProperties().property( key ) );
+
+  // In case the button was initialized to a different config object, we need to reconnect to it here (see https://issues.qgis.org/issues/18694 )
+  connect( button, &QgsPropertyOverrideButton::changed, this, &QgsLayoutConfigObject::updateDataDefinedProperty, Qt::UniqueConnection );
+  button->registerExpressionContextGenerator( mLayoutObject );
 }
 
 QgsLayoutAtlas *QgsLayoutConfigObject::layoutAtlas() const
@@ -113,6 +117,11 @@ QgsLayoutAtlas *QgsLayoutConfigObject::layoutAtlas() const
   }
 
   return printLayout->atlas();
+}
+
+void QgsLayoutConfigObject::setObject( QgsLayoutObject *object )
+{
+  mLayoutObject = object;
 }
 
 QgsVectorLayer *QgsLayoutConfigObject::coverageLayer() const
@@ -171,6 +180,11 @@ void QgsLayoutItemBaseWidget::setReportTypeString( const QString & )
 {
 }
 
+void QgsLayoutItemBaseWidget::setDesignerInterface( QgsLayoutDesignerInterface * )
+{
+
+}
+
 void QgsLayoutItemBaseWidget::registerDataDefinedButton( QgsPropertyOverrideButton *button, QgsLayoutObject::DataDefinedProperty property )
 {
   mConfigObject->initializeDataDefinedButton( button, property );
@@ -218,6 +232,8 @@ QgsLayoutItemPropertiesWidget::QgsLayoutItemPropertiesWidget( QWidget *parent, Q
   , mConfigObject( new QgsLayoutConfigObject( this, item ) )
 {
   setupUi( this );
+
+  mVariableEditor->setMinimumHeight( mVariableEditor->fontMetrics().height() * 15 );
 
   mItemRotationSpinBox->setClearValue( 0 );
   mStrokeUnitsComboBox->linkToWidget( mStrokeWidthSpinBox );
@@ -316,6 +332,8 @@ void QgsLayoutItemPropertiesWidget::setItem( QgsLayoutItem *item )
     connect( mItem, &QgsLayoutItem::sizePositionChanged, this, &QgsLayoutItemPropertiesWidget::setValuesForGuiPositionElements );
     connect( mItem, &QgsLayoutObject::changed, this, &QgsLayoutItemPropertiesWidget::setValuesForGuiNonPositionElements );
   }
+
+  mConfigObject->setObject( mItem );
 
   setValuesForGuiElements();
 }

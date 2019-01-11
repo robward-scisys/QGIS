@@ -17,7 +17,11 @@
 
 #include <Qt3DRender/QCamera>
 #include <Qt3DRender/QMesh>
+#include <Qt3DRender/QObjectPicker>
+#include <Qt3DRender/QPickEvent>
 #include <Qt3DRender/QPickingSettings>
+#include <Qt3DRender/QPickTriangleEvent>
+#include <Qt3DRender/QPointLight>
 #include <Qt3DRender/QRenderSettings>
 #include <Qt3DRender/QSceneLoader>
 #include <Qt3DExtras/QForwardRenderer>
@@ -30,6 +34,7 @@
 
 #include "qgsaabb.h"
 #include "qgsabstract3dengine.h"
+#include "qgs3dmapscenepickhandler.h"
 #include "qgs3dmapsettings.h"
 #include "qgs3dutils.h"
 #include "qgsabstract3drenderer.h"
@@ -38,13 +43,13 @@
 #include "qgschunknode_p.h"
 #include "qgsterrainentity_p.h"
 #include "qgsterraingenerator.h"
+#include "qgstessellatedpolygongeometry.h"
 #include "qgsvectorlayer.h"
 #include "qgsvectorlayer3drenderer.h"
 
 
 Qgs3DMapScene::Qgs3DMapScene( const Qgs3DMapSettings &map, QgsAbstract3DEngine *engine )
-  : Qt3DCore::QEntity()
-  , mMap( map )
+  : mMap( map )
   , mEngine( engine )
 {
 
@@ -81,12 +86,14 @@ Qgs3DMapScene::Qgs3DMapScene( const Qgs3DMapSettings &map, QgsAbstract3DEngine *
 
   // create terrain entity
 
-  createTerrain();
+  createTerrainDeferred();
   connect( &map, &Qgs3DMapSettings::terrainGeneratorChanged, this, &Qgs3DMapScene::createTerrain );
   connect( &map, &Qgs3DMapSettings::terrainVerticalScaleChanged, this, &Qgs3DMapScene::createTerrain );
   connect( &map, &Qgs3DMapSettings::mapTileResolutionChanged, this, &Qgs3DMapScene::createTerrain );
   connect( &map, &Qgs3DMapSettings::maxTerrainScreenErrorChanged, this, &Qgs3DMapScene::createTerrain );
   connect( &map, &Qgs3DMapSettings::maxTerrainGroundErrorChanged, this, &Qgs3DMapScene::createTerrain );
+  connect( &map, &Qgs3DMapSettings::terrainShadingChanged, this, &Qgs3DMapScene::createTerrain );
+  connect( &map, &Qgs3DMapSettings::pointLightsChanged, this, &Qgs3DMapScene::updateLights );
 
   // create entities of renderers
 
@@ -99,19 +106,7 @@ Qgs3DMapScene::Qgs3DMapScene( const Qgs3DMapSettings &map, QgsAbstract3DEngine *
   // listen to changes of layers in order to add/remove 3D renderer entities
   connect( &map, &Qgs3DMapSettings::layersChanged, this, &Qgs3DMapScene::onLayersChanged );
 
-  Qt3DCore::QEntity *lightEntity = new Qt3DCore::QEntity;
-  Qt3DCore::QTransform *lightTransform = new Qt3DCore::QTransform;
-  lightTransform->setTranslation( QVector3D( 0, 1000, 0 ) );
-  // defaults: white, intensity 0.5
-  // attenuation: constant 1.0, linear 0.0, quadratic 0.0
-  Qt3DRender::QPointLight *light = new Qt3DRender::QPointLight;
-  light->setConstantAttenuation( 0 );
-  //light->setColor(Qt::white);
-  //light->setIntensity(0.5);
-  lightEntity->addComponent( light );
-  lightEntity->addComponent( lightTransform );
-  lightEntity->setParent( this );
-
+  updateLights();
 
 #if 0
   ChunkedEntity *testChunkEntity = new ChunkedEntity( AABB( -500, 0, -500, 500, 100, 500 ), 2.f, 3.f, 7, new TestChunkLoaderFactory );
@@ -178,6 +173,51 @@ int Qgs3DMapScene::terrainPendingJobsCount() const
   return mTerrain ? mTerrain->pendingJobsCount() : 0;
 }
 
+void Qgs3DMapScene::registerPickHandler( Qgs3DMapScenePickHandler *pickHandler )
+{
+  if ( mPickHandlers.isEmpty() )
+  {
+    // we need to add object pickers
+    for ( Qt3DCore::QEntity *entity : mLayerEntities.values() )
+    {
+      Qt3DRender::QObjectPicker *picker = new Qt3DRender::QObjectPicker( entity );
+      entity->addComponent( picker );
+      connect( picker, &Qt3DRender::QObjectPicker::clicked, this, &Qgs3DMapScene::onLayerEntityPickEvent );
+    }
+  }
+
+  mPickHandlers.append( pickHandler );
+}
+
+void Qgs3DMapScene::unregisterPickHandler( Qgs3DMapScenePickHandler *pickHandler )
+{
+  mPickHandlers.removeOne( pickHandler );
+
+  if ( mPickHandlers.isEmpty() )
+  {
+    // we need to remove pickers
+    for ( Qt3DCore::QEntity *entity : mLayerEntities.values() )
+    {
+      Qt3DRender::QObjectPicker *picker = entity->findChild<Qt3DRender::QObjectPicker *>();
+      picker->deleteLater();
+    }
+  }
+}
+
+float Qgs3DMapScene::worldSpaceError( float epsilon, float distance )
+{
+  Qt3DRender::QCamera *camera = mCameraController->camera();
+  float fov = camera->fieldOfView();
+  QRect rect = mCameraController->viewport();
+  float screenSizePx = std::max( rect.width(), rect.height() ); // TODO: is this correct?
+
+  // in qgschunkedentity_p.cpp there is inverse calculation (world space error to screen space error)
+  // with explanation of the math.
+  float frustumWidthAtDistance = 2 * distance * tan( fov / 2 );
+  float err = frustumWidthAtDistance * epsilon / screenSizePx;
+  return err;
+}
+
 QgsChunkedEntity::SceneState _sceneState( QgsCameraController *cameraController )
 {
   Qt3DRender::QCamera *camera = cameraController->camera();
@@ -192,6 +232,20 @@ QgsChunkedEntity::SceneState _sceneState( QgsCameraController *cameraController 
 
 void Qgs3DMapScene::onCameraChanged()
 {
+  updateScene();
+  bool changedCameraPlanes = updateCameraNearFarPlanes();
+
+  if ( changedCameraPlanes )
+  {
+    // repeat update of entities - because we have updated camera's near/far planes,
+    // the active nodes may have changed as well
+    updateScene();
+    updateCameraNearFarPlanes();
+  }
+}
+
+void Qgs3DMapScene::updateScene()
+{
   for ( QgsChunkedEntity *entity : qgis::as_const( mChunkEntities ) )
   {
     if ( entity->isEnabled() )
@@ -199,7 +253,10 @@ void Qgs3DMapScene::onCameraChanged()
   }
 
   updateSceneState();
+}
 
+bool Qgs3DMapScene::updateCameraNearFarPlanes()
+{
   // Update near and far plane from the terrain.
   // this needs to be done with great care as we have kind of circular dependency here:
   // active nodes are culled based on the current frustum (which involves near + far plane)
@@ -259,14 +316,19 @@ void Qgs3DMapScene::onCameraChanged()
     }
 
     // set near/far plane - with some tolerance in front/behind expected near/far planes
-    camera->setFarPlane( ffar * 2 );
-    camera->setNearPlane( fnear / 2 );
-
+    float newFar = ffar * 2;
+    float newNear = fnear / 2;
+    if ( !qgsFloatNear( newFar, camera->farPlane() ) || !qgsFloatNear( newNear, camera->nearPlane() ) )
+    {
+      camera->setFarPlane( newFar );
+      camera->setNearPlane( newNear );
+      return true;
+    }
   }
   else
     qDebug() << "no terrain - not setting near/far plane";
 
-  //qDebug() << "camera near/far" << mCameraController->camera()->nearPlane() << mCameraController->camera()->farPlane();
+  return false;
 }
 
 void Qgs3DMapScene::onFrameTriggered( float dt )
@@ -287,14 +349,6 @@ void Qgs3DMapScene::onFrameTriggered( float dt )
 
 void Qgs3DMapScene::createTerrain()
 {
-  if ( mTerrain )
-  {
-    mChunkEntities.removeOne( mTerrain );
-
-    mTerrain->deleteLater();
-    mTerrain = nullptr;
-  }
-
   if ( !mTerrainUpdateScheduled )
   {
     // defer re-creation of terrain: there may be multiple invocations of this slot, so create the new entity just once
@@ -306,6 +360,14 @@ void Qgs3DMapScene::createTerrain()
 
 void Qgs3DMapScene::createTerrainDeferred()
 {
+  if ( mTerrain )
+  {
+    mChunkEntities.removeOne( mTerrain );
+
+    mTerrain->deleteLater();
+    mTerrain = nullptr;
+  }
+
   double tile0width = mMap.terrainGenerator()->extent().width();
   int maxZoomLevel = Qgs3DUtils::maxZoomLevel( tile0width, mMap.mapTileResolution(), mMap.maxTerrainGroundError() );
 
@@ -342,6 +404,84 @@ void Qgs3DMapScene::createTerrainDeferred()
 void Qgs3DMapScene::onBackgroundColorChanged()
 {
   mEngine->setClearColor( mMap.backgroundColor() );
+}
+
+void Qgs3DMapScene::onLayerEntityPickEvent( Qt3DRender::QPickEvent *event )
+{
+  if ( event->button() != Qt3DRender::QPickEvent::LeftButton )
+    return;
+
+  Qt3DRender::QPickTriangleEvent *triangleEvent = qobject_cast<Qt3DRender::QPickTriangleEvent *>( event );
+  if ( !triangleEvent )
+    return;
+
+  Qt3DRender::QObjectPicker *picker = qobject_cast<Qt3DRender::QObjectPicker *>( sender() );
+  if ( !picker )
+    return;
+
+  Qt3DCore::QEntity *entity = qobject_cast<Qt3DCore::QEntity *>( picker->parent() );
+  if ( !entity )
+    return;
+
+  QgsMapLayer *layer = mLayerEntities.key( entity );
+  if ( !layer )
+    return;
+
+  QgsVectorLayer *vlayer = qobject_cast<QgsVectorLayer *>( layer );
+  if ( !vlayer )
+    return;
+
+  for ( Qgs3DMapScenePickHandler *pickHandler : qgis::as_const( mPickHandlers ) )
+  {
+    // go figure out feature ID from the triangle index
+    QgsFeatureId fid = -1;
+    for ( Qt3DRender::QGeometryRenderer *geomRenderer : entity->findChildren<Qt3DRender::QGeometryRenderer *>() )
+    {
+      // unfortunately we can't access which sub-entity triggered the pick event
+      // so as a temporary workaround let's just ignore the entity with selection
+      // and hope the event was the main entity (QTBUG-58206)
+      if ( geomRenderer->objectName() != QLatin1String( "main" ) )
+        continue;
+
+      if ( QgsTessellatedPolygonGeometry *g = qobject_cast<QgsTessellatedPolygonGeometry *>( geomRenderer->geometry() ) )
+      {
+        fid = g->triangleIndexToFeatureId( triangleEvent->triangleIndex() );
+        break;
+      }
+    }
+    pickHandler->handlePickOnVectorLayer( vlayer, fid, event->worldIntersection() );
+  }
+
+}
+
+void Qgs3DMapScene::updateLights()
+{
+  for ( Qt3DCore::QEntity *entity : qgis::as_const( mLightEntities ) )
+    entity->deleteLater();
+  mLightEntities.clear();
+
+  const auto newPointLights = mMap.pointLights();
+  for ( const QgsPointLightSettings &pointLightSettings : newPointLights )
+  {
+    Qt3DCore::QEntity *lightEntity = new Qt3DCore::QEntity;
+    Qt3DCore::QTransform *lightTransform = new Qt3DCore::QTransform;
+    lightTransform->setTranslation( QVector3D( pointLightSettings.position().x(),
+                                    pointLightSettings.position().y(),
+                                    pointLightSettings.position().z() ) );
+
+    Qt3DRender::QPointLight *light = new Qt3DRender::QPointLight;
+    light->setColor( pointLightSettings.color() );
+    light->setIntensity( pointLightSettings.intensity() );
+
+    light->setConstantAttenuation( pointLightSettings.constantAttenuation() );
+    light->setLinearAttenuation( pointLightSettings.linearAttenuation() );
+    light->setQuadraticAttenuation( pointLightSettings.quadraticAttenuation() );
+
+    lightEntity->addComponent( light );
+    lightEntity->addComponent( lightTransform );
+    lightEntity->setParent( this );
+    mLightEntities << lightEntity;
+  }
 }
 
 void Qgs3DMapScene::onLayerRenderer3DChanged()
@@ -394,7 +534,7 @@ void Qgs3DMapScene::addLayerEntity( QgsMapLayer *layer )
     // This is a bit of a hack and it should be handled in QgsMapLayer::setRenderer3D() but in qgis_core
     // the vector layer 3D renderer class is not available. Maybe we need an intermediate map layer 3D renderer
     // class in qgis_core that can be used to handle this case nicely.
-    if ( layer->type() == QgsMapLayer::VectorLayer && renderer->type() == "vector" )
+    if ( layer->type() == QgsMapLayer::VectorLayer && renderer->type() == QLatin1String( "vector" ) )
     {
       static_cast<QgsVectorLayer3DRenderer *>( renderer )->setLayer( static_cast<QgsVectorLayer *>( layer ) );
     }
@@ -404,6 +544,13 @@ void Qgs3DMapScene::addLayerEntity( QgsMapLayer *layer )
     {
       newEntity->setParent( this );
       mLayerEntities.insert( layer, newEntity );
+
+      if ( !mPickHandlers.isEmpty() )
+      {
+        Qt3DRender::QObjectPicker *picker = new Qt3DRender::QObjectPicker( newEntity );
+        newEntity->addComponent( picker );
+        connect( picker, &Qt3DRender::QObjectPicker::pressed, this, &Qgs3DMapScene::onLayerEntityPickEvent );
+      }
     }
   }
 

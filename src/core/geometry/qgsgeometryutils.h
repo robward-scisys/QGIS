@@ -244,12 +244,46 @@ class CORE_EXPORT QgsGeometryUtils
      * If the return value is 0, then the test was unsuccessful (e.g. due to testing a point exactly
      * on the line, or exactly in line with the segment) and the result is undefined.
      */
-    static int leftOfLine( double x, double y, double x1, double y1, double x2, double y2 );
+    static int leftOfLine( const double x, const double y, const double x1, const double y1, const double x2, const double y2 );
 
     /**
-     * Returns a point a specified distance toward a second point.
+     * Returns a value < 0 if the point \a point is left of the line from \a p1 -> \a p2.
+     * A positive return value indicates the point is to the right of the line.
+     *
+     * If the return value is 0, then the test was unsuccessful (e.g. due to testing a point exactly
+     * on the line, or exactly in line with the segment) and the result is undefined.
+     *
+     * \since QGIS 3.6
+     */
+    static int leftOfLine( const QgsPoint &point, const QgsPoint &p1, const QgsPoint &p2 );
+
+    /**
+     * Returns a point a specified \a distance toward a second point.
      */
     static QgsPoint pointOnLineWithDistance( const QgsPoint &startPoint, const QgsPoint &directionPoint, double distance );
+
+    /**
+     * Calculates the point a specified \a distance from (\a x1, \a y1) toward a second point (\a x2, \a y2).
+     *
+     * Optionally, interpolated z and m values can be obtained by specifying the \a z1, \a z2 and \a z arguments
+     * and/or the \a m1, \a m2, \a m arguments.
+     *
+     * \note Not available in Python bindings
+     * \since QGIS 3.4
+     */
+    static void pointOnLineWithDistance( double x1, double y1, double x2, double y2, double distance, double &x, double &y,
+                                         double *z1 = nullptr, double *z2 = nullptr, double *z = nullptr,
+                                         double *m1 = nullptr, double *m2 = nullptr, double *m = nullptr ) SIP_SKIP;
+
+    /**
+     * Interpolates a point on an arc defined by three points, \a pt1, \a pt2 and \a pt3. The arc will be
+     * interpolated by the specified \a distance from \a pt1.
+     *
+     * Any z or m values present in the points will also be linearly interpolated in the output.
+     *
+     * \since QGIS 3.4
+     */
+    static QgsPoint interpolatePointOnArc( const QgsPoint &pt1, const QgsPoint &pt2, const QgsPoint &pt3, double distance );
 
     //! Returns the counter clockwise angle between a line with components dx, dy and the line with dx > 0 and dy = 0
     static double ccwAngle( double dy, double dx );
@@ -258,7 +292,12 @@ class CORE_EXPORT QgsGeometryUtils
     static void circleCenterRadius( const QgsPoint &pt1, const QgsPoint &pt2, const QgsPoint &pt3, double &radius SIP_OUT,
                                     double &centerX SIP_OUT, double &centerY SIP_OUT );
 
-    //! Returns true if circle is ordered clockwise
+    /**
+     * Returns true if the circle defined by three angles is ordered clockwise.
+     *
+     * The angles are defined counter-clockwise from the origin, i.e. using
+     * Euclidean angles as opposed to geographic "North up" angles.
+     */
     static bool circleClockwise( double angle1, double angle2, double angle3 );
 
     //! Returns true if, in a circle, angle is between angle1 and angle2
@@ -344,13 +383,13 @@ class CORE_EXPORT QgsGeometryUtils
      * Returns a gml::coordinates DOM element.
      * \note not available in Python bindings
      */
-    static QDomElement pointsToGML2( const QgsPointSequence &points, QDomDocument &doc, int precision, const QString &ns, const QgsAbstractGeometry::AxisOrder &axisOrder = QgsAbstractGeometry::AxisOrder::XY ) SIP_SKIP;
+    static QDomElement pointsToGML2( const QgsPointSequence &points, QDomDocument &doc, int precision, const QString &ns, QgsAbstractGeometry::AxisOrder axisOrder = QgsAbstractGeometry::AxisOrder::XY ) SIP_SKIP;
 
     /**
      * Returns a gml::posList DOM element.
      * \note not available in Python bindings
      */
-    static QDomElement pointsToGML3( const QgsPointSequence &points, QDomDocument &doc, int precision, const QString &ns, bool is3D, const QgsAbstractGeometry::AxisOrder &axisOrder = QgsAbstractGeometry::AxisOrder::XY ) SIP_SKIP;
+    static QDomElement pointsToGML3( const QgsPointSequence &points, QDomDocument &doc, int precision, const QString &ns, bool is3D, QgsAbstractGeometry::AxisOrder axisOrder = QgsAbstractGeometry::AxisOrder::XY ) SIP_SKIP;
 
     /**
      * Returns a geoJSON coordinates string.

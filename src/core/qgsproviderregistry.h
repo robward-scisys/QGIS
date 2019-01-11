@@ -91,7 +91,7 @@ class CORE_EXPORT QgsProviderRegistry
 
     /**
      * Creates a new instance of a provider.
-     * \param providerKey identificator of the provider
+     * \param providerKey identifier of the provider
      * \param dataSource  string containing data source for the provider
      * \param options provider options
      * \returns new instance of provider or NULL on error
@@ -102,10 +102,20 @@ class CORE_EXPORT QgsProviderRegistry
 
     /**
      * Returns the provider capabilities
-        \param providerKey identificator of the provider
+        \param providerKey identifier of the provider
         \since QGIS 2.6
      */
     int providerCapabilities( const QString &providerKey ) const;
+
+    /**
+     * Breaks a provider data source URI into its component paths (e.g. file path, layer name).
+     * \param providerKey identifier of the provider
+     * \param uri uri string
+     * \returns map containing components. Standard components include "path", "layerName", "url".
+     * \note this function may not be supported by all providers, an empty map will be returned in such case
+     * \since QGIS 3.4
+     */
+    QVariantMap decodeUri( const QString &providerKey, const QString &uri );
 
     /**
      * Returns a new widget for selecting layers from a provider.
@@ -119,7 +129,7 @@ class CORE_EXPORT QgsProviderRegistry
 
     /**
      * Gets pointer to provider function
-     * \param providerKey identificator of the provider
+     * \param providerKey identifier of the provider
      * \param functionName name of function
      * \returns pointer to function or NULL on error. If the provider uses direct provider
      * function pointers instead of a library nullptr will be returned.
@@ -169,6 +179,36 @@ class CORE_EXPORT QgsProviderRegistry
       \note This replaces QgsRasterLayer::buildSupportedRasterFileFilter()
      */
     virtual QString fileRasterFilters() const;
+
+    /**
+     * Returns mesh file filter string
+
+      Returns a string suitable for a QFileDialog of mesh file formats
+      supported by all data providers.
+
+      This walks through all data providers appending calls to their
+      fileMeshFilters to a string, which is then returned.
+
+      \see fileMeshDatasetFilters()
+
+      \since QGIS 3.6
+     */
+    virtual QString fileMeshFilters() const;
+
+    /**
+     * Returns mesh's dataset file filter string
+
+      Returns a string suitable for a QFileDialog of mesh datasets file formats
+      supported by all data providers.
+
+      This walks through all data providers appending calls to their
+      fileMeshFilters to a string, which is then returned.
+
+      \see fileMeshFilters()
+
+      \since QGIS 3.6
+     */
+    virtual QString fileMeshDatasetFilters() const;
 
     //! Returns a string containing the available database drivers
     virtual QString databaseDrivers() const;
@@ -246,6 +286,16 @@ class CORE_EXPORT QgsProviderRegistry
      * File filter string for raster files
      */
     QString mRasterFileFilters;
+
+    /**
+     * File filter string for raster files
+     */
+    QString mMeshFileFilters;
+
+    /**
+     * File filter string for raster files
+     */
+    QString mMeshDatasetFileFilters;
 
     /**
      * Available database drivers string for vector databases

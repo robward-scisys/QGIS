@@ -21,7 +21,6 @@
 #include "qgswmsutils.h"
 #include "qgswmsrenderer.h"
 #include "qgsfilterrestorer.h"
-#include "qgscapabilitiescache.h"
 #include "qgsexception.h"
 #include "qgsfields.h"
 #include "qgsfieldformatter.h"
@@ -44,19 +43,14 @@
 #include "qgscoordinatereferencesystem.h"
 #include "qgsvectordataprovider.h"
 #include "qgsvectorlayer.h"
-#include "qgslogger.h"
 #include "qgsmessagelog.h"
-#include "qgssymbol.h"
 #include "qgsrenderer.h"
-#include "qgspaintenginehack.h"
-#include "qgsogcutils.h"
 #include "qgsfeature.h"
 #include "qgsaccesscontrol.h"
 #include "qgsfeaturerequest.h"
 #include "qgsmaprendererjobproxy.h"
 #include "qgswmsserviceexception.h"
 #include "qgsserverprojectutils.h"
-#include "qgsgui.h"
 #include "qgsmaplayerstylemanager.h"
 #include "qgswkbtypes.h"
 #include "qgsannotationmanager.h"
@@ -67,20 +61,20 @@
 #include "qgslayerrestorer.h"
 #include "qgsdxfexport.h"
 #include "qgssymbollayerutils.h"
-#include "qgslayoutitemlegend.h"
 #include "qgsserverexception.h"
 
 #include <QImage>
 #include <QPainter>
 #include <QStringList>
 #include <QTemporaryFile>
-#include <QTextStream>
 #include <QDir>
 
 //for printing
+#include "qgslayoutatlas.h"
 #include "qgslayoutmanager.h"
 #include "qgslayoutexporter.h"
 #include "qgslayoutsize.h"
+#include "qgslayoutrendercontext.h"
 #include "qgslayoutmeasurement.h"
 #include "qgsprintlayout.h"
 #include "qgslayoutpagecollection.h"
@@ -91,17 +85,10 @@
 #include "qgslayoutitemmapgrid.h"
 #include "qgslayoutframe.h"
 #include "qgslayoutitemhtml.h"
-#include "qgslayoutitempicture.h"
-#include "qgslayoutitemscalebar.h"
-#include "qgslayoutitemshape.h"
 #include "qgsfeaturefilterprovidergroup.h"
 #include "qgsogcutils.h"
 #include "qgsunittypes.h"
-#include <QBuffer>
-#include <QPrinter>
-#include <QSvgGenerator>
 #include <QUrl>
-#include <QPaintEngine>
 
 namespace QgsWms
 {
@@ -111,9 +98,9 @@ namespace QgsWms
 
     QgsLayerTreeModelLegendNode *_findLegendNodeForRule( QgsLayerTreeModel *legendModel, const QString &rule )
     {
-      Q_FOREACH ( QgsLayerTreeLayer *nodeLayer, legendModel->rootGroup()->findLayers() )
+      for ( QgsLayerTreeLayer *nodeLayer : legendModel->rootGroup()->findLayers() )
       {
-        Q_FOREACH ( QgsLayerTreeModelLegendNode *legendNode, legendModel->layerLegendNodes( nodeLayer ) )
+        for ( QgsLayerTreeModelLegendNode *legendNode : legendModel->layerLegendNodes( nodeLayer ) )
         {
           if ( legendNode->data( Qt::DisplayRole ).toString() == rule )
             return legendNode;
@@ -127,15 +114,14 @@ namespace QgsWms
 
   QgsRenderer::QgsRenderer( QgsServerInterface *serverIface,
                             const QgsProject *project,
-                            const QgsServerRequest::Parameters &parameters )
-    : mParameters( parameters )
+                            const QgsWmsParameters &parameters )
+    : mWmsParameters( parameters )
 #ifdef HAVE_SERVER_PYTHON_PLUGINS
     , mAccessControl( serverIface->accessControls() )
 #endif
     , mSettings( *serverIface->serverSettings() )
     , mProject( project )
   {
-    mWmsParameters.load( parameters );
     mWmsParameters.dump();
 
     initRestrictedLayers();
@@ -172,7 +158,7 @@ namespace QgsWms
     QList<QgsMapLayer *> layers;
     QList<QgsWmsParametersLayer> params = mWmsParameters.layersParameters();
 
-    QString sld = mWmsParameters.sld();
+    QString sld = mWmsParameters.sldBody();
     if ( !sld.isEmpty() )
       layers = sldStylizedLayers( sld );
     else
@@ -182,7 +168,7 @@ namespace QgsWms
     std::reverse( layers.begin(), layers.end() );
 
     // check permissions
-    Q_FOREACH ( QgsMapLayer *ml, layers )
+    for ( QgsMapLayer *ml : layers )
       checkLayerReadPermissions( ml );
 
     // build layer tree model for legend
@@ -242,7 +228,7 @@ namespace QgsWms
   {
     QgsRenderContext context = QgsRenderContext::fromMapSettings( mapSettings );
 
-    Q_FOREACH ( const QString &id, mapSettings.layerIds() )
+    for ( const QString &id : mapSettings.layerIds() )
     {
       QgsVectorLayer *vl = qobject_cast<QgsVectorLayer *>( mProject->mapLayer( id ) );
       if ( !vl || !vl->renderer() )
@@ -277,7 +263,7 @@ namespace QgsWms
       context.expressionContext().setFeature( f );
       if ( moreSymbolsPerFeature )
       {
-        Q_FOREACH ( QgsSymbol *s, r->originalSymbolsForFeature( f, context ) )
+        for ( QgsSymbol *s : r->originalSymbolsForFeature( f, context ) )
           usedSymbols.insert( QgsSymbolLayerUtils::symbolProperties( s ) );
       }
       else
@@ -314,7 +300,7 @@ namespace QgsWms
     restorer.reset( new QgsLayerRestorer( mNicknameLayers.values() ) );
 
     // init stylized layers according to LAYERS/STYLES or SLD
-    QString sld = mWmsParameters.sld();
+    QString sld = mWmsParameters.sldBody();
     if ( !sld.isEmpty() )
     {
       layers = sldStylizedLayers( sld );
@@ -329,19 +315,17 @@ namespace QgsWms
 
     // configure each layer with opacity, selection filter, ...
     bool updateMapExtent = mWmsParameters.bbox().isEmpty();
-    Q_FOREACH ( QgsMapLayer *layer, layers )
+    for ( QgsMapLayer *layer : layers )
     {
-      Q_FOREACH ( QgsWmsParametersLayer param, params )
+      checkLayerReadPermissions( layer );
+
+      for ( const QgsWmsParametersLayer &param : params )
       {
         if ( param.mNickname == layerNickname( *layer ) )
         {
-          checkLayerReadPermissions( layer );
-
           setLayerOpacity( layer, param.mOpacity );
 
           setLayerFilter( layer, param.mFilter );
-
-          setLayerAccessControlFilter( layer );
 
           setLayerSelection( layer, param.mSelection );
 
@@ -351,6 +335,8 @@ namespace QgsWms
           break;
         }
       }
+
+      setLayerAccessControlFilter( layer );
     }
 
     // add highlight layers above others
@@ -377,7 +363,103 @@ namespace QgsWms
 
     std::unique_ptr<QgsPrintLayout> layout( sourceLayout->clone() );
 
-    configurePrintLayout( layout.get(), mapSettings );
+    //atlas print?
+    QgsLayoutAtlas *atlas = 0;
+    QStringList atlasPk = mWmsParameters.atlasPk();
+    if ( !atlasPk.isEmpty() ) //atlas print requested?
+    {
+      atlas = layout->atlas();
+      if ( !atlas || !atlas->enabled() )
+      {
+        //error
+        throw QgsBadRequestException( QStringLiteral( "NoAtlas" ),
+                                      QStringLiteral( "The template has no atlas enabled" ) );
+      }
+
+      QgsVectorLayer *cLayer = atlas->coverageLayer();
+      if ( !cLayer )
+      {
+        throw QgsBadRequestException( QStringLiteral( "AtlasPrintError" ),
+                                      QStringLiteral( "The atlas has no coverage layer" ) );
+      }
+
+      int maxAtlasFeatures = QgsServerProjectUtils::wmsMaxAtlasFeatures( *mProject );
+      if ( atlasPk.size() == 1 && atlasPk.at( 0 ) == QStringLiteral( "*" ) )
+      {
+        atlas->setFilterFeatures( false );
+        atlas->updateFeatures();
+        if ( atlas->count() > maxAtlasFeatures )
+        {
+          throw QgsBadRequestException( QStringLiteral( "AtlasPrintError" ),
+                                        QString( "The project configuration allows printing maximum %1 atlas features at a time" ).arg( maxAtlasFeatures ) );
+        }
+      }
+      else
+      {
+        QgsAttributeList pkIndexes = cLayer->primaryKeyAttributes();
+        if ( pkIndexes.size() < 1 )
+        {
+          throw QgsBadRequestException( QStringLiteral( "AtlasPrintError" ),
+                                        QStringLiteral( "An error occurred during the Atlas print" ) );
+        }
+        QStringList pkAttributeNames;
+        for ( int i = 0; i < pkIndexes.size(); ++i )
+        {
+          pkAttributeNames.append( cLayer->fields()[pkIndexes.at( i )].name() );
+        }
+
+        int nAtlasFeatures = atlasPk.size() / pkIndexes.size();
+        if ( nAtlasFeatures * pkIndexes.size() != atlasPk.size() ) //Test is atlasPk.size() is a multiple of pkIndexes.size(). Bail out if not
+        {
+          throw QgsBadRequestException( QStringLiteral( "AtlasPrintError" ),
+                                        QStringLiteral( "Wrong number of ATLAS_PK parameters" ) );
+        }
+
+        //number of atlas features might be restricted
+        if ( nAtlasFeatures > maxAtlasFeatures )
+        {
+          throw QgsBadRequestException( QStringLiteral( "AtlasPrintError" ),
+                                        QString( "%1 atlas features have been requestet, but the project configuration only allows printing %2 atlas features at a time" )
+                                        .arg( nAtlasFeatures ).arg( maxAtlasFeatures ) );
+        }
+
+        QString filterString;
+        int currentAtlasPk = 0;
+
+        for ( int i = 0; i < nAtlasFeatures; ++i )
+        {
+          if ( i > 0 )
+          {
+            filterString.append( " OR " );
+          }
+
+          filterString.append( "( " );
+
+          for ( int j = 0; j < pkIndexes.size(); ++j )
+          {
+            if ( j > 0 )
+            {
+              filterString.append( " AND " );
+            }
+            filterString.append( QString( "\"%1\" = %2" ).arg( pkAttributeNames.at( j ) ).arg( atlasPk.at( currentAtlasPk ) ) );
+            ++currentAtlasPk;
+          }
+
+          filterString.append( " )" );
+        }
+
+        atlas->setFilterFeatures( true );
+        QString errorString;
+        atlas->setFilterExpression( filterString, errorString );
+        if ( !errorString.isEmpty() )
+        {
+          throw QgsBadRequestException( QStringLiteral( "AtlasPrintError" ),
+                                        QStringLiteral( "An error occurred during the Atlas print" ) );
+        }
+      }
+    }
+
+    configurePrintLayout( layout.get(), mapSettings, atlas );
 
     // Get the temporary output file
     QTemporaryFile tempOutputFile( QDir::tempPath() +  '/' + QStringLiteral( "XXXXXX.%1" ).arg( formatString.toLower() ) );
@@ -387,6 +469,7 @@ namespace QgsWms
 
     }
 
+    QString exportError;
     if ( formatString.compare( QLatin1String( "svg" ), Qt::CaseInsensitive ) == 0 )
     {
       // Settings for the layout exporter
@@ -398,8 +481,23 @@ namespace QgsWms
         if ( ok )
           exportSettings.dpi = dpi;
       }
-      QgsLayoutExporter exporter( layout.get() );
-      exporter.exportToSvg( tempOutputFile.fileName(), exportSettings );
+      // Draw selections
+      exportSettings.flags |= QgsLayoutRenderContext::FlagDrawSelection;
+      if ( atlas )
+      {
+        //export first page of atlas
+        atlas->beginRender();
+        if ( atlas->next() )
+        {
+          QgsLayoutExporter atlasSvgExport( atlas->layout() );
+          atlasSvgExport.exportToSvg( tempOutputFile.fileName(), exportSettings );
+        }
+      }
+      else
+      {
+        QgsLayoutExporter exporter( layout.get() );
+        exporter.exportToSvg( tempOutputFile.fileName(), exportSettings );
+      }
     }
     else if ( formatString.compare( QLatin1String( "png" ), Qt::CaseInsensitive ) == 0 || formatString.compare( QLatin1String( "jpg" ), Qt::CaseInsensitive ) == 0 )
     {
@@ -415,15 +513,30 @@ namespace QgsWms
           dpi = _dpi;
       }
       exportSettings.dpi = dpi;
+      // Draw selections
+      exportSettings.flags |= QgsLayoutRenderContext::FlagDrawSelection;
       // Destination image size in px
       QgsLayoutSize layoutSize( layout->pageCollection()->page( 0 )->sizeWithUnits() );
       QgsLayoutMeasurement width( layout->convertFromLayoutUnits( layoutSize.width(), QgsUnitTypes::LayoutUnit::LayoutMillimeters ) );
       QgsLayoutMeasurement height( layout->convertFromLayoutUnits( layoutSize.height(), QgsUnitTypes::LayoutUnit::LayoutMillimeters ) );
-      exportSettings.imageSize = QSize( ( int )( width.length() * dpi / 25.4 ), ( int )( height.length() * dpi / 25.4 ) );
+      exportSettings.imageSize = QSize( static_cast<int>( width.length() * dpi / 25.4 ), static_cast<int>( height.length() * dpi / 25.4 ) );
       // Export first page only (unless it's a pdf, see below)
       exportSettings.pages.append( 0 );
-      QgsLayoutExporter exporter( layout.get() );
-      exporter.exportToImage( tempOutputFile.fileName(), exportSettings );
+      if ( atlas )
+      {
+        //only can give back one page in server rendering
+        atlas->beginRender();
+        if ( atlas->next() )
+        {
+          QgsLayoutExporter atlasPngExport( atlas->layout() );
+          atlasPngExport.exportToImage( tempOutputFile.fileName(), exportSettings );
+        }
+      }
+      else
+      {
+        QgsLayoutExporter exporter( layout.get() );
+        exporter.exportToImage( tempOutputFile.fileName(), exportSettings );
+      }
     }
     else if ( formatString.compare( QLatin1String( "pdf" ), Qt::CaseInsensitive ) == 0 )
     {
@@ -437,9 +550,21 @@ namespace QgsWms
         if ( ok )
           exportSettings.dpi = dpi;
       }
+      // Draw selections
+      exportSettings.flags |= QgsLayoutRenderContext::FlagDrawSelection;
+      // Print as raster
+      exportSettings.rasterizeWholeImage = layout->customProperty( QStringLiteral( "rasterize" ), false ).toBool();
+
       // Export all pages
       QgsLayoutExporter exporter( layout.get() );
-      exporter.exportToPdf( tempOutputFile.fileName(), exportSettings );
+      if ( atlas )
+      {
+        exporter.exportToPdf( atlas, tempOutputFile.fileName(), exportSettings, exportError );
+      }
+      else
+      {
+        exporter.exportToPdf( tempOutputFile.fileName(), exportSettings );
+      }
     }
     else //unknown format
     {
@@ -450,51 +575,55 @@ namespace QgsWms
     return tempOutputFile.readAll();
   }
 
-  bool QgsRenderer::configurePrintLayout( QgsPrintLayout *c, const QgsMapSettings &mapSettings )
+  bool QgsRenderer::configurePrintLayout( QgsPrintLayout *c, const QgsMapSettings &mapSettings, bool atlasPrint )
   {
-
+    c->renderContext().setSelectionColor( mapSettings.selectionColor() );
     // Maps are configured first
     QList<QgsLayoutItemMap *> maps;
     c->layoutItems<QgsLayoutItemMap>( maps );
     // Layout maps now use a string UUID as "id", let's assume that the first map
     // has id 0 and so on ...
     int mapId = 0;
+
     for ( const auto &map : qgis::as_const( maps ) )
     {
       QgsWmsParametersComposerMap cMapParams = mWmsParameters.composerMapParameters( mapId );
       mapId++;
 
-      //map extent is mandatory
-      if ( !cMapParams.mHasExtent )
+      if ( !atlasPrint || !map->atlasDriven() ) //No need to extent, scal, rotation set with atlas feature
       {
-        //remove map from composition if not referenced by the request
-        c->removeLayoutItem( map );
-        continue;
-      }
-      // Change CRS of map set to "project CRS" to match requested CRS
-      // (if map has a valid preset crs then we keep this crs and don't use the
-      // requested crs for this map item)
-      if ( mapSettings.destinationCrs().isValid() && !map->presetCrs().isValid() )
-        map->setCrs( mapSettings.destinationCrs() );
+        //map extent is mandatory
+        if ( !cMapParams.mHasExtent )
+        {
+          //remove map from composition if not referenced by the request
+          c->removeLayoutItem( map );
+          continue;
+        }
+        // Change CRS of map set to "project CRS" to match requested CRS
+        // (if map has a valid preset crs then we keep this crs and don't use the
+        // requested crs for this map item)
+        if ( mapSettings.destinationCrs().isValid() && !map->presetCrs().isValid() )
+          map->setCrs( mapSettings.destinationCrs() );
 
-      QgsRectangle r( cMapParams.mExtent );
-      if ( mWmsParameters.versionAsNumber() >= QgsProjectVersion( 1, 3, 0 ) &&
-           mapSettings.destinationCrs().hasAxisInverted() )
-      {
-        r.invert();
-      }
-      map->setExtent( r );
+        QgsRectangle r( cMapParams.mExtent );
+        if ( mWmsParameters.versionAsNumber() >= QgsProjectVersion( 1, 3, 0 ) &&
+             mapSettings.destinationCrs().hasAxisInverted() )
+        {
+          r.invert();
+        }
+        map->setExtent( r );
 
-      // scale
-      if ( cMapParams.mScale > 0 )
-      {
-        map->setScale( cMapParams.mScale );
-      }
+        // scale
+        if ( cMapParams.mScale > 0 )
+        {
+          map->setScale( cMapParams.mScale );
+        }
 
-      // rotation
-      if ( cMapParams.mRotation )
-      {
-        map->setMapRotation( cMapParams.mRotation );
+        // rotation
+        if ( cMapParams.mRotation )
+        {
+          map->setMapRotation( cMapParams.mRotation );
+        }
       }
 
       if ( !map->keepLayerSet() )
@@ -526,11 +655,13 @@ namespace QgsWms
     c->layoutItems<QgsLayoutItemLabel>( labels );
     for ( const auto &label : qgis::as_const( labels ) )
     {
-      QString labelId = label->id().toUpper();
-      if ( !mParameters.contains( labelId ) )
+      bool ok = false;
+      const QString labelId = label->id();
+      const QString labelParam = mWmsParameters.layoutParameter( labelId, ok );
+
+      if ( !ok )
         continue;
 
-      QString labelParam = mParameters[ labelId ];
       if ( labelParam.isEmpty() )
       {
         //remove exported labels referenced in the request
@@ -550,15 +681,18 @@ namespace QgsWms
     {
       if ( html->frameCount() == 0 )
         continue;
+
       QgsLayoutFrame *htmlFrame = html->frame( 0 );
-      QString htmlId = htmlFrame->id().toUpper();
-      if ( !mParameters.contains( htmlId ) )
+      bool ok = false;
+      const QString htmlId = htmlFrame->id();
+      const QString url = mWmsParameters.layoutParameter( htmlId, ok );
+
+      if ( !ok )
       {
         html->update();
         continue;
       }
 
-      QString url = mParameters[ htmlId ];
       //remove exported Htmls referenced in the request
       //but with empty string
       if ( url.isEmpty() )
@@ -658,7 +792,7 @@ namespace QgsWms
     restorer.reset( new QgsLayerRestorer( mNicknameLayers.values() ) );
 
     // init stylized layers according to LAYERS/STYLES or SLD
-    QString sld = mWmsParameters.sld();
+    QString sld = mWmsParameters.sldBody();
     if ( !sld.isEmpty() )
     {
       layers = sldStylizedLayers( sld );
@@ -673,19 +807,17 @@ namespace QgsWms
 
     // configure each layer with opacity, selection filter, ...
     bool updateMapExtent = mWmsParameters.bbox().isEmpty();
-    Q_FOREACH ( QgsMapLayer *layer, layers )
+    for ( QgsMapLayer *layer : layers )
     {
-      Q_FOREACH ( QgsWmsParametersLayer param, params )
+      checkLayerReadPermissions( layer );
+
+      for ( const QgsWmsParametersLayer &param : params )
       {
         if ( param.mNickname == layerNickname( *layer ) )
         {
-          checkLayerReadPermissions( layer );
-
           setLayerOpacity( layer, param.mOpacity );
 
           setLayerFilter( layer, param.mFilter );
-
-          setLayerAccessControlFilter( layer );
 
           setLayerSelection( layer, param.mSelection );
 
@@ -695,6 +827,8 @@ namespace QgsWms
           break;
         }
       }
+
+      setLayerAccessControlFilter( layer );
     }
 
     // add highlight layers above others
@@ -746,7 +880,7 @@ namespace QgsWms
     restorer.reset( new QgsLayerRestorer( mNicknameLayers.values() ) );
 
     // init stylized layers according to LAYERS/STYLES or SLD
-    QString sld = mWmsParameters.sld();
+    QString sld = mWmsParameters.sldBody();
     if ( !sld.isEmpty() )
     {
       layers = sldStylizedLayers( sld );
@@ -770,28 +904,30 @@ namespace QgsWms
     // get dxf layers
     QList< QgsDxfExport::DxfLayer > dxfLayers;
     int layerIdx = -1;
-    Q_FOREACH ( QgsMapLayer *layer, layers )
+    for ( QgsMapLayer *layer : layers )
     {
       layerIdx++;
       if ( layer->type() != QgsMapLayer::VectorLayer )
         continue;
       if ( !wfsLayerIds.contains( layer->id() ) )
         continue;
-      Q_FOREACH ( QgsWmsParametersLayer param, params )
+
+      checkLayerReadPermissions( layer );
+
+      for ( const QgsWmsParametersLayer &param : params )
       {
         if ( param.mNickname == layerNickname( *layer ) )
         {
-          checkLayerReadPermissions( layer );
-
           setLayerOpacity( layer, param.mOpacity );
 
           setLayerFilter( layer, param.mFilter );
 
-          setLayerAccessControlFilter( layer );
-
           break;
         }
       }
+
+      setLayerAccessControlFilter( layer );
+
       // cast for dxf layers
       QgsVectorLayer *vlayer = static_cast<QgsVectorLayer *>( layer );
 
@@ -898,7 +1034,7 @@ namespace QgsWms
     restorer.reset( new QgsLayerRestorer( mNicknameLayers.values() ) );
 
     // init stylized layers according to LAYERS/STYLES or SLD
-    QString sld = mWmsParameters.sld();
+    QString sld = mWmsParameters.sldBody();
     if ( !sld.isEmpty() )
       layers = sldStylizedLayers( sld );
     else
@@ -943,23 +1079,23 @@ namespace QgsWms
     // remove unwanted layers (restricted layers, ...)
     removeUnwantedLayers( layers, scaleDenominator );
     // remove non identifiable layers
-    removeNonIdentifiableLayers( layers );
+    //removeNonIdentifiableLayers( layers );
 
-    Q_FOREACH ( QgsMapLayer *layer, layers )
+    for ( QgsMapLayer *layer : layers )
     {
-      Q_FOREACH ( QgsWmsParametersLayer param, params )
+      checkLayerReadPermissions( layer );
+
+      for ( const QgsWmsParametersLayer &param : params )
       {
         if ( param.mNickname == layerNickname( *layer ) )
         {
-          checkLayerReadPermissions( layer );
-
           setLayerFilter( layer, param.mFilter );
-
-          setLayerAccessControlFilter( layer );
 
           break;
         }
       }
+
+      setLayerAccessControlFilter( layer );
     }
 
     // add layers to map settings (revert order for the rendering)
@@ -1013,11 +1149,11 @@ namespace QgsWms
       if ( !mapExtent.isEmpty() && height > 0 && width > 0 )
       {
         double mapWidthHeightRatio = mapExtent.width() / mapExtent.height();
-        double imageWidthHeightRatio = ( double )width / ( double )height;
+        double imageWidthHeightRatio = static_cast<double>( width ) / static_cast<double>( height );
         if ( !qgsDoubleNear( mapWidthHeightRatio, imageWidthHeightRatio, 0.0001 ) )
         {
           // inspired by MapServer, mapdraw.c L115
-          double cellsize = ( mapExtent.width() / ( double )width ) * 0.5 + ( mapExtent.height() / ( double )height ) * 0.5;
+          double cellsize = ( mapExtent.width() / static_cast<double>( width ) ) * 0.5 + ( mapExtent.height() / static_cast<double>( height ) ) * 0.5;
           width = mapExtent.width() / cellsize;
           height = mapExtent.height() / cellsize;
         }
@@ -1133,6 +1269,16 @@ namespace QgsWms
 
     // add labeling engine settings
     mapSettings.setLabelingEngineSettings( mProject->labelingEngineSettings() );
+
+    // enable rendering optimization
+    mapSettings.setFlag( QgsMapSettings::UseRenderingOptimization );
+
+    // set selection color
+    int myRed = mProject->readNumEntry( "Gui", "/SelectionColorRedPart", 255 );
+    int myGreen = mProject->readNumEntry( "Gui", "/SelectionColorGreenPart", 255 );
+    int myBlue = mProject->readNumEntry( "Gui", "/SelectionColorBluePart", 0 );
+    int myAlpha = mProject->readNumEntry( "Gui", "/SelectionColorAlphaPart", 255 );
+    mapSettings.setSelectionColor( QColor( myRed, myGreen, myBlue, myAlpha ) );
   }
 
   QDomDocument QgsRenderer::featureInfoDocument( QList<QgsMapLayer *> &layers, const QgsMapSettings &mapSettings,
@@ -1165,8 +1311,8 @@ namespace QgsWms
     int height = mWmsParameters.heightAsInt();
     if ( ( i != -1 && j != -1 && width != 0 && height != 0 ) && ( width != outputImage->width() || height != outputImage->height() ) )
     {
-      i *= ( outputImage->width() / ( double )width );
-      j *= ( outputImage->height() / ( double )height );
+      i *= ( outputImage->width() / static_cast<double>( width ) );
+      j *= ( outputImage->height() / static_cast<double>( height ) );
     }
 
     // init search variables
@@ -1238,14 +1384,20 @@ namespace QgsWms
     //layers can have assigned a different name for GetCapabilities
     QHash<QString, QString> layerAliasMap = QgsServerProjectUtils::wmsFeatureInfoLayerAliasMap( *mProject );
 
-    Q_FOREACH ( QString queryLayer, queryLayers )
+    for ( const QString &queryLayer : queryLayers )
     {
       bool validLayer = false;
-      Q_FOREACH ( QgsMapLayer *layer, layers )
+      bool queryableLayer = true;
+      for ( QgsMapLayer *layer : layers )
       {
         if ( queryLayer == layerNickname( *layer ) )
         {
           validLayer = true;
+          queryableLayer = layer->flags().testFlag( QgsMapLayer::Identifiable );
+          if ( !queryableLayer )
+          {
+            break;
+          }
 
           QDomElement layerElement;
           if ( infoFormat == QgsWmsParameters::Format::GML )
@@ -1308,11 +1460,15 @@ namespace QgsWms
           break;
         }
       }
-
-      if ( !validLayer && !mNicknameLayers.contains( queryLayer ) )
+      if ( !validLayer && !mNicknameLayers.contains( queryLayer ) && !mLayerGroups.contains( queryLayer ) )
       {
         QString msg = QObject::tr( "Layer '%1' not found" ).arg( queryLayer );
         throw QgsBadRequestException( QStringLiteral( "LayerNotDefined" ), msg );
+      }
+      else if ( ( validLayer && !queryableLayer ) || ( !validLayer && mLayerGroups.contains( queryLayer ) ) )
+      {
+        QString msg = QObject::tr( "Layer '%1' is not queryable" ).arg( queryLayer );
+        throw QgsBadRequestException( QStringLiteral( "LayerNotQueryable" ), msg );
       }
     }
 
@@ -1402,7 +1558,7 @@ namespace QgsWms
     {
       searchRect = layerFilterGeom->boundingBox();
     }
-    else if ( mParameters.contains( QStringLiteral( "BBOX" ) ) )
+    else if ( !mWmsParameters.bbox().isEmpty() )
     {
       searchRect = layerRect;
     }
@@ -1440,8 +1596,7 @@ namespace QgsWms
     mAccessControl->filterFeatures( layer, fReq );
 
     QStringList attributes;
-    QgsField field;
-    Q_FOREACH ( field, layer->fields().toList() )
+    for ( const QgsField &field : fields )
     {
       attributes.append( field.name() );
     }
@@ -1555,11 +1710,13 @@ namespace QgsWms
 
           QDomElement attributeElement = infoDocument.createElement( QStringLiteral( "Attribute" ) );
           attributeElement.setAttribute( QStringLiteral( "name" ), attributeName );
+          const QgsEditorWidgetSetup setup = layer->editorWidgetSetup( i );
           attributeElement.setAttribute( QStringLiteral( "value" ),
-                                         replaceValueMapAndRelation(
-                                           layer, i,
-                                           featureAttributes[i].isNull() ?  QString() : QgsExpression::replaceExpressionText( featureAttributes[i].toString(), &renderContext.expressionContext() )
-                                         )
+                                         QgsExpression::replaceExpressionText(
+                                           replaceValueMapAndRelation(
+                                             layer, i,
+                                             featureAttributes[i] ),
+                                           &renderContext.expressionContext() )
                                        );
           featureElement.appendChild( attributeElement );
         }
@@ -1860,11 +2017,11 @@ namespace QgsWms
 
     const int bytes_per_line = ( ( width * depth + 31 ) >> 5 ) << 2; // bytes per scanline (must be multiple of 4)
 
-    if ( std::numeric_limits<int>::max() / depth < ( uint )width
+    if ( std::numeric_limits<int>::max() / depth < static_cast<uint>( width )
          || bytes_per_line <= 0
          || height <= 0
-         || std::numeric_limits<int>::max() / uint( bytes_per_line ) < ( uint )height
-         || std::numeric_limits<int>::max() / sizeof( uchar * ) < uint( height ) )
+         || std::numeric_limits<int>::max() / static_cast<uint>( bytes_per_line ) < static_cast<uint>( height )
+         || std::numeric_limits<int>::max() / sizeof( uchar * ) < static_cast<uint>( height ) )
       return false;
 
     return true;
@@ -1992,7 +2149,7 @@ namespace QgsWms
     //the HTML head
     featureInfoString.append( "<HEAD>\n" );
     featureInfoString.append( "<TITLE> GetFeatureInfo results </TITLE>\n" );
-    featureInfoString.append( "<meta http-equiv=\"Content-Type\" content=\"text/html;charset=utf-8\">\n" );
+    featureInfoString.append( "<META http-equiv=\"Content-Type\" content=\"text/html;charset=utf-8\"/>\n" );
     featureInfoString.append( "</HEAD>\n" );
 
     //start the html body
@@ -2227,7 +2384,7 @@ namespace QgsWms
       QString fieldTextString = featureAttributes.at( i ).toString();
       if ( layer )
       {
-        fieldTextString = replaceValueMapAndRelation( layer, i, QgsExpression::replaceExpressionText( fieldTextString, &expressionContext ) );
+        fieldTextString = QgsExpression::replaceExpressionText( replaceValueMapAndRelation( layer, i, fieldTextString ), &expressionContext );
       }
       QDomText fieldText = doc.createTextNode( fieldTextString );
       fieldElem.appendChild( fieldText );
@@ -2252,7 +2409,7 @@ namespace QgsWms
     return typeNameElement;
   }
 
-  QString QgsRenderer::replaceValueMapAndRelation( QgsVectorLayer *vl, int idx, const QString &attributeVal )
+  QString QgsRenderer::replaceValueMapAndRelation( QgsVectorLayer *vl, int idx, const QVariant &attributeVal )
   {
     const QgsEditorWidgetSetup setup = vl->editorWidgetSetup( idx );
     QgsFieldFormatter *fieldFormatter = QgsApplication::fieldFormatterRegistry()->fieldFormatter( setup.type() );
@@ -2267,21 +2424,15 @@ namespace QgsWms
 
   int QgsRenderer::getImageQuality() const
   {
-
     // First taken from QGIS project
     int imageQuality = QgsServerProjectUtils::wmsImageQuality( *mProject );
 
     // Then checks if a parameter is given, if so use it instead
-    if ( mParameters.contains( QStringLiteral( "IMAGE_QUALITY" ) ) )
+    if ( !mWmsParameters.imageQuality().isEmpty() )
     {
-      bool conversionSuccess;
-      int imageQualityParameter;
-      imageQualityParameter = mParameters[ QStringLiteral( "IMAGE_QUALITY" )].toInt( &conversionSuccess );
-      if ( conversionSuccess )
-      {
-        imageQuality = imageQualityParameter;
-      }
+      imageQuality = mWmsParameters.imageQualityAsInt();
     }
+
     return imageQuality;
   }
 
@@ -2309,10 +2460,10 @@ namespace QgsWms
     double mapUnitTolerance = 0.0;
     if ( ml->geometryType() == QgsWkbTypes::PolygonGeometry )
     {
-      QMap<QString, QString>::const_iterator tolIt = mParameters.find( QStringLiteral( "FI_POLYGON_TOLERANCE" ) );
-      if ( tolIt != mParameters.constEnd() )
+      if ( ! mWmsParameters.polygonTolerance().isEmpty()
+           && mWmsParameters.polygonToleranceAsInt() > 0 )
       {
-        mapUnitTolerance = tolIt.value().toInt() * rct.mapToPixel().mapUnitsPerPixel();
+        mapUnitTolerance = mWmsParameters.polygonToleranceAsInt() * rct.mapToPixel().mapUnitsPerPixel();
       }
       else
       {
@@ -2321,10 +2472,10 @@ namespace QgsWms
     }
     else if ( ml->geometryType() == QgsWkbTypes::LineGeometry )
     {
-      QMap<QString, QString>::const_iterator tolIt = mParameters.find( QStringLiteral( "FI_LINE_TOLERANCE" ) );
-      if ( tolIt != mParameters.constEnd() )
+      if ( ! mWmsParameters.lineTolerance().isEmpty()
+           && mWmsParameters.lineToleranceAsInt() > 0 )
       {
-        mapUnitTolerance = tolIt.value().toInt() * rct.mapToPixel().mapUnitsPerPixel();
+        mapUnitTolerance = mWmsParameters.lineToleranceAsInt() * rct.mapToPixel().mapUnitsPerPixel();
       }
       else
       {
@@ -2333,10 +2484,10 @@ namespace QgsWms
     }
     else //points
     {
-      QMap<QString, QString>::const_iterator tolIt = mParameters.find( QStringLiteral( "FI_POINT_TOLERANCE" ) );
-      if ( tolIt != mParameters.constEnd() )
+      if ( ! mWmsParameters.pointTolerance().isEmpty()
+           && mWmsParameters.pointToleranceAsInt() > 0 )
       {
-        mapUnitTolerance = tolIt.value().toInt() * rct.mapToPixel().mapUnitsPerPixel();
+        mapUnitTolerance = mWmsParameters.pointToleranceAsInt() * rct.mapToPixel().mapUnitsPerPixel();
       }
       else
       {
@@ -2361,13 +2512,13 @@ namespace QgsWms
     QStringList restrictedLayersNames;
     QgsLayerTreeGroup *root = mProject->layerTreeRoot();
 
-    Q_FOREACH ( QString l, restricted )
+    for ( const QString &l : restricted )
     {
       QgsLayerTreeGroup *group = root->findGroup( l );
       if ( group )
       {
         QList<QgsLayerTreeLayer *> groupLayers = group->findLayers();
-        Q_FOREACH ( QgsLayerTreeLayer *treeLayer, groupLayers )
+        for ( QgsLayerTreeLayer *treeLayer : groupLayers )
         {
           restrictedLayersNames.append( treeLayer->name() );
         }
@@ -2380,7 +2531,7 @@ namespace QgsWms
 
     // build output with names, ids or short name according to the configuration
     QList<QgsLayerTreeLayer *> layers = root->findLayers();
-    Q_FOREACH ( QgsLayerTreeLayer *layer, layers )
+    for ( QgsLayerTreeLayer *layer : layers )
     {
       if ( restrictedLayersNames.contains( layer->name() ) )
       {
@@ -2391,7 +2542,7 @@ namespace QgsWms
 
   void QgsRenderer::initNicknameLayers()
   {
-    Q_FOREACH ( QgsMapLayer *ml, mProject->mapLayers() )
+    for ( QgsMapLayer *ml : mProject->mapLayers() )
     {
       mNicknameLayers[ layerNickname( *ml ) ] = ml;
     }
@@ -2416,7 +2567,13 @@ namespace QgsWms
     {
       if ( child->nodeType() == QgsLayerTreeNode::NodeGroup )
       {
-        initLayerGroupsRecursive( static_cast<const QgsLayerTreeGroup *>( child ), child->name() );
+        QString name = child->customProperty( QStringLiteral( "wmsShortName" ) ).toString();
+
+        if ( name.isEmpty() )
+          name = child->name();
+
+        initLayerGroupsRecursive( static_cast<const QgsLayerTreeGroup *>( child ), name );
+
       }
     }
   }
@@ -2456,7 +2613,7 @@ namespace QgsWms
 
     // try to create highlight layer for each geometry
     QString crs = mWmsParameters.crs();
-    Q_FOREACH ( QgsWmsParametersHighlightLayer param, params )
+    for ( const QgsWmsParametersHighlightLayer &param : params )
     {
       // create sld document from symbology
       QDomDocument sldDoc;
@@ -2477,7 +2634,7 @@ namespace QgsWms
       }
 
       // build url for vector layer
-      QString typeName = QgsWkbTypes::geometryDisplayString( param.mGeom.type() );
+      const QString typeName = QgsWkbTypes::displayString( param.mGeom.wkbType() );
       QString url = typeName + "?crs=" + crs;
       if ( ! param.mLabel.isEmpty() )
       {
@@ -2662,7 +2819,7 @@ namespace QgsWms
   {
     QList<QgsMapLayer *> layers;
 
-    Q_FOREACH ( QgsWmsParametersLayer param, params )
+    for ( const QgsWmsParametersLayer &param : params )
     {
       QString nickname = param.mNickname;
       QString style = param.mStyle;
@@ -2693,6 +2850,8 @@ namespace QgsWms
       }
       else if ( mLayerGroups.contains( nickname ) )
       {
+        // Reverse order of layers from a group
+        QList<QgsMapLayer *> layersFromGroup;
         for ( QgsMapLayer *layer : mLayerGroups[nickname] )
         {
           if ( !mRestrictedLayers.contains( layerNickname( *layer ) ) )
@@ -2705,9 +2864,10 @@ namespace QgsWms
                 throw QgsMapServiceException( QStringLiteral( "StyleNotDefined" ), QStringLiteral( "Style \"%1\" does not exist for layer \"%2\"" ).arg( style, layerNickname( *layer ) ) );
               }
             }
-            layers.insert( 0, layer );
+            layersFromGroup.push_front( layer );
           }
         }
+        layers.append( layersFromGroup );
       }
       else
       {
@@ -2780,31 +2940,35 @@ namespace QgsWms
     }
   }
 
-  void QgsRenderer::setLayerFilter( QgsMapLayer *layer, const QStringList &filters )
+  void QgsRenderer::setLayerFilter( QgsMapLayer *layer, const QList<QgsWmsParametersFilter> &filters )
   {
     if ( layer->type() == QgsMapLayer::VectorLayer )
     {
       QgsVectorLayer *filteredLayer = qobject_cast<QgsVectorLayer *>( layer );
-      Q_FOREACH ( QString filter, filters )
+      for ( const QgsWmsParametersFilter &filter : filters )
       {
-        if ( filter.startsWith( QStringLiteral( "<" ) ) && filter.endsWith( QStringLiteral( "Filter>" ) ) )
+        if ( filter.mType == QgsWmsParametersFilter::OGC_FE )
         {
           // OGC filter
           QDomDocument filterXml;
           QString errorMsg;
-          if ( !filterXml.setContent( filter, true, &errorMsg ) )
+          if ( !filterXml.setContent( filter.mFilter, true, &errorMsg ) )
           {
             throw QgsBadRequestException( QStringLiteral( "Filter string rejected" ),
-                                          QStringLiteral( "error message: %1. The XML string was: %2" ).arg( errorMsg, filter ) );
+                                          QStringLiteral( "error message: %1. The XML string was: %2" ).arg( errorMsg, filter.mFilter ) );
           }
           QDomElement filterElem = filterXml.firstChildElement();
-          std::unique_ptr<QgsExpression> expression( QgsOgcUtils::expressionFromOgcFilter( filterElem, filteredLayer ) );
-          mFeatureFilter.setFilter( filteredLayer, *expression );
+          std::unique_ptr<QgsExpression> expression( QgsOgcUtils::expressionFromOgcFilter( filterElem, filter.mVersion, filteredLayer ) );
+
+          if ( expression )
+          {
+            mFeatureFilter.setFilter( filteredLayer, *expression );
+          }
         }
-        else
+        else if ( filter.mType == QgsWmsParametersFilter::SQL )
         {
           // QGIS (SQL) filter
-          if ( !testFilterStringSafety( filter ) )
+          if ( !testFilterStringSafety( filter.mFilter ) )
           {
             throw QgsBadRequestException( QStringLiteral( "Filter string rejected" ),
                                           QStringLiteral( "The filter string %1"
@@ -2814,10 +2978,10 @@ namespace QgsWms
                                               " Allowed Keywords and special characters are "
                                               " AND,OR,IN,<,>=,>,>=,!=,',',(,),DMETAPHONE,SOUNDEX."
                                               " Not allowed are semicolons in the filter expression." ).arg(
-                                            filter ) );
+                                            filter.mFilter ) );
           }
 
-          QString newSubsetString = filter;
+          QString newSubsetString = filter.mFilter;
           if ( !filteredLayer->subsetString().isEmpty() )
           {
             newSubsetString.prepend( ") AND (" );
@@ -2837,7 +3001,7 @@ namespace QgsWms
     {
       QgsFeatureIds selectedIds;
 
-      Q_FOREACH ( const QString &id, fids )
+      for ( const QString &id : fids )
       {
         selectedIds.insert( STRING_TO_FID( id ) );
       }
@@ -2914,7 +3078,7 @@ namespace QgsWms
   {
     QList<QgsMapLayer *> wantedLayers;
 
-    Q_FOREACH ( QgsMapLayer *layer, layers )
+    for ( QgsMapLayer *layer : layers )
     {
       if ( !layerScaleVisibility( *layer, scaleDenominator ) )
         continue;
@@ -2930,20 +3094,13 @@ namespace QgsWms
 
   void QgsRenderer::removeNonIdentifiableLayers( QList<QgsMapLayer *> &layers ) const
   {
-    QStringList nonIdentifiableLayers = mProject->nonIdentifiableLayers();
-    if ( !nonIdentifiableLayers.isEmpty() )
+    QList<QgsMapLayer *>::iterator it = layers.begin();
+    while ( it != layers.end() )
     {
-      QList<QgsMapLayer *> wantedLayers;
-
-      Q_FOREACH ( QgsMapLayer *layer, layers )
-      {
-        if ( nonIdentifiableLayers.contains( layer->id() ) )
-          continue;
-
-        wantedLayers.append( layer );
-      }
-
-      layers = wantedLayers;
+      if ( !( *it )->flags().testFlag( QgsMapLayer::Identifiable ) )
+        it = layers.erase( it );
+      else
+        ++it;
     }
   }
 
@@ -2976,7 +3133,7 @@ namespace QgsWms
     // build layer tree
     rootGroup.clear();
     QList<QgsVectorLayerFeatureCounter *> counters;
-    Q_FOREACH ( QgsMapLayer *ml, layers )
+    for ( QgsMapLayer *ml : layers )
     {
       QgsLayerTreeLayer *lt = rootGroup.addLayer( ml );
       lt->setCustomProperty( QStringLiteral( "showFeatureCount" ), showFeatureCount );
@@ -3005,7 +3162,7 @@ namespace QgsWms
       HitTest hitTest;
       getMap( contentBasedMapSettings, &hitTest );
 
-      Q_FOREACH ( QgsLayerTreeNode *node, rootGroup.children() )
+      for ( QgsLayerTreeNode *node : rootGroup.children() )
       {
         Q_ASSERT( QgsLayerTree::isLayer( node ) );
         QgsLayerTreeLayer *nodeLayer = QgsLayerTree::toLayer( node );
@@ -3017,7 +3174,7 @@ namespace QgsWms
         const SymbolSet &usedSymbols = hitTest[vl];
         QList<int> order;
         int i = 0;
-        Q_FOREACH ( const QgsLegendSymbolItem &legendItem, vl->renderer()->legendSymbolItems() )
+        for ( const QgsLegendSymbolItem &legendItem : vl->renderer()->legendSymbolItems() )
         {
           QString sProp = QgsSymbolLayerUtils::symbolProperties( legendItem.legacyRuleKey() );
           if ( usedSymbols.contains( sProp ) )
@@ -3040,7 +3197,7 @@ namespace QgsWms
     if ( ! ruleDefined )
     {
       QList<QgsLayerTreeNode *> rootChildren = rootGroup.children();
-      Q_FOREACH ( QgsLayerTreeNode *node, rootChildren )
+      for ( QgsLayerTreeNode *node : rootChildren )
       {
         if ( QgsLayerTree::isLayer( node ) )
         {
@@ -3052,14 +3209,14 @@ namespace QgsWms
           // rule item titles
           if ( !drawLegendItemLabel )
           {
-            Q_FOREACH ( QgsLayerTreeModelLegendNode *legendNode, legendModel->layerLegendNodes( nodeLayer ) )
+            for ( QgsLayerTreeModelLegendNode *legendNode : legendModel->layerLegendNodes( nodeLayer ) )
             {
               legendNode->setUserLabel( QStringLiteral( " " ) ); // empty string = no override, so let's use one space
             }
           }
           else if ( !drawLegendLayerLabel )
           {
-            Q_FOREACH ( QgsLayerTreeModelLegendNode *legendNode, legendModel->layerLegendNodes( nodeLayer ) )
+            for ( QgsLayerTreeModelLegendNode *legendNode : legendModel->layerLegendNodes( nodeLayer ) )
             {
               if ( legendNode->isEmbeddedInParent() )
                 legendNode->setEmbeddedInParent( false );

@@ -29,7 +29,11 @@
 #include <QStringList>
 #include <QFileInfo>
 #include <QTimer>
+
+#if defined( HAVE_QT5SERIALPORT )
 #include <QSerialPortInfo>
+#include <QSerialPort>
+#endif
 
 QList< QPair<QString, QString> > QgsGpsDetector::availablePorts()
 {
@@ -43,10 +47,13 @@ QList< QPair<QString, QString> > QgsGpsDetector::availablePorts()
   // try local gpsd first
   devs << QPair<QString, QString>( QStringLiteral( "localhost:2947:" ), tr( "local gpsd" ) );
 
+  // try serial ports
+#if defined( HAVE_QT5SERIALPORT )
   for ( auto p : QSerialPortInfo::availablePorts() )
   {
     devs << QPair<QString, QString>( p.portName(), tr( "%1: %2" ).arg( p.portName(), p.description() ) );
   }
+#endif
 
   return devs;
 }
@@ -54,7 +61,10 @@ QList< QPair<QString, QString> > QgsGpsDetector::availablePorts()
 QgsGpsDetector::QgsGpsDetector( const QString &portName )
 {
   mConn = nullptr;
+
+#if defined( HAVE_QT5SERIALPORT )
   mBaudList << QSerialPort::Baud4800 << QSerialPort::Baud9600 << QSerialPort::Baud38400 << QSerialPort::Baud57600 << QSerialPort::Baud115200;  //add 57600 for SXBlueII GPS unit
+#endif
 
   if ( portName.isEmpty() )
   {
@@ -71,16 +81,12 @@ QgsGpsDetector::QgsGpsDetector( const QString &portName )
 
 QgsGpsDetector::~QgsGpsDetector()
 {
-  if ( mConn )
-    delete mConn;
+  delete mConn;
 }
 
 void QgsGpsDetector::advance()
 {
-  if ( mConn )
-  {
-    delete mConn;
-  }
+  delete mConn;
 
   mConn = nullptr;
 
@@ -120,6 +126,7 @@ void QgsGpsDetector::advance()
     }
     else
     {
+#if defined( HAVE_QT5SERIALPORT )
       QSerialPort *serial = new QSerialPort( mPortList.at( mPortIndex ).first );
 
       serial->setBaudRate( mBaudList[ mBaudIndex ] );
@@ -128,7 +135,7 @@ void QgsGpsDetector::advance()
       serial->setDataBits( QSerialPort::Data8 );
       serial->setStopBits( QSerialPort::OneStop );
 
-      if ( serial->open( QIODevice::ReadOnly | QIODevice::Unbuffered ) )
+      if ( serial->open( QIODevice::ReadOnly ) )
       {
         mConn = new QgsNmeaConnection( serial );
       }
@@ -136,6 +143,9 @@ void QgsGpsDetector::advance()
       {
         delete serial;
       }
+#else
+      qWarning( "QT5SERIALPORT not found and mPortList matches serial port, this should never happen" );
+#endif
     }
   }
 

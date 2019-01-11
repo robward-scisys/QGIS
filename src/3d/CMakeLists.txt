@@ -8,8 +8,11 @@ SET(QGIS_3D_SRCS
   qgs3dmapsettings.cpp
   qgs3dutils.cpp
   qgscameracontroller.cpp
+  qgscamerapose.cpp
+  qgslayoutitem3dmap.cpp
   qgsoffscreen3dengine.cpp
   qgsphongmaterialsettings.cpp
+  qgspointlightsettings.cpp
   qgsraycastingutils_p.cpp
   qgstessellatedpolygongeometry.cpp
   qgstilingscheme.cpp
@@ -52,9 +55,12 @@ SET(QGIS_3D_MOC_HDRS
   qgs3dmapsettings.h
   qgsabstract3dengine.h
   qgscameracontroller.h
+  qgslayoutitem3dmap.h
   qgsoffscreen3dengine.h
+  qgstessellatedpolygongeometry.h
   qgswindow3dengine.h
 
+  chunks/qgschunkboundsentity_p.h
   chunks/qgschunkedentity_p.h
   chunks/qgschunkloader_p.h
   chunks/qgschunkqueuejob_p.h
@@ -62,10 +68,12 @@ SET(QGIS_3D_MOC_HDRS
   processing/qgs3dalgorithms.h
 
   terrain/qgsdemterraintileloader_p.h
+  terrain/qgsflatterraingenerator.h
   terrain/qgsterrainentity_p.h
   terrain/qgsterraintexturegenerator_p.h
   terrain/qgsterraintextureimage_p.h
   terrain/qgsterraintileentity_p.h
+  terrain/qgsterraintileloader_p.h
 )
 
 QT5_WRAP_CPP(QGIS_3D_MOC_SRCS ${QGIS_3D_MOC_HDRS})
@@ -79,17 +87,20 @@ SET(QGIS_3D_HDRS
   qgsabstract3dengine.h
   qgs3dmapscene.h
   qgs3dmapsettings.h
+  qgs3dtypes.h
   qgs3dutils.h
   qgscameracontroller.h
+  qgscamerapose.h
+  qgslayoutitem3dmap.h
   qgsoffscreen3dengine.h
   qgsphongmaterialsettings.h
+  qgspointlightsettings.h
   qgsraycastingutils_p.h
   qgstessellatedpolygongeometry.h
   qgstilingscheme.h
   qgsvectorlayer3drenderer.h
   qgswindow3dengine.h
 
-  chunks/qgschunkboundsentity_p.h
   chunks/qgschunkedentity_p.h
   chunks/qgschunklist_p.h
   chunks/qgschunkloader_p.h
@@ -107,13 +118,11 @@ SET(QGIS_3D_HDRS
   terrain/qgsdemterraingenerator.h
   terrain/qgsdemterraintilegeometry_p.h
   terrain/qgsdemterraintileloader_p.h
-  terrain/qgsflatterraingenerator.h
   terrain/qgsterrainentity_p.h
   terrain/qgsterraingenerator.h
   terrain/qgsterraintexturegenerator_p.h
   terrain/qgsterraintextureimage_p.h
   terrain/qgsterraintileentity_p.h
-  terrain/qgsterraintileloader_p.h
   #terrain/quantizedmeshgeometry.h
   #terrain/quantizedmeshterraingenerator.h
 )
@@ -129,6 +138,7 @@ INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/src/core/symbology
   ${CMAKE_SOURCE_DIR}/src/core/metadata
   ${CMAKE_SOURCE_DIR}/src/core/expression
+  ${CMAKE_SOURCE_DIR}/src/core/layout
   ${CMAKE_SOURCE_DIR}/src/core/3d
   ${CMAKE_BINARY_DIR}/src/core
   ${CMAKE_BINARY_DIR}/src/3d
@@ -137,6 +147,7 @@ INCLUDE_DIRECTORIES(SYSTEM
   ${GEOS_INCLUDE_DIR}
   ${GDAL_INCLUDE_DIR}
   ${SQLITE3_INCLUDE_DIR}
+  ${QT5_3DEXTRA_INCLUDE_DIR}
 )
 
 #############################################################

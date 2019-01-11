@@ -72,8 +72,8 @@ class CORE_EXPORT QgsProcessingProvider : public QObject
 
     /**
      * Returns the provider help id string, used for creating QgsHelp urls for algorithms
-     * belong to this provider. By default, this returns the provider's id(). This string
-     * should not be localised.
+     * belong to this provider. By default, this returns an empty string, meaning that
+     * no QgsHelp url should be created for the provider's algorithms.
      * \see id()
      */
     virtual QString helpId() const;
@@ -87,7 +87,7 @@ class CORE_EXPORT QgsProcessingProvider : public QObject
     virtual QString name() const = 0;
 
     /**
-     * Returns the a longer version of the provider name, which can include extra details
+     * Returns the longer version of the provider name, which can include extra details
      * such as version numbers. E.g. "Lastools LIDAR tools (version 2.2.1)".
      * This string should be localised.
      *
@@ -118,11 +118,27 @@ class CORE_EXPORT QgsProcessingProvider : public QObject
 
     /**
      * Returns a list of the vector format file extensions supported by this provider.
+     * \see supportedOutputTableExtensions()
      * \see defaultVectorFileExtension()
      * \see supportedOutputRasterLayerExtensions()
      * \see supportsNonFileBasedOutput()
      */
     virtual QStringList supportedOutputVectorLayerExtensions() const;
+
+    /**
+     * Returns a list of the table (geometry-less vector layers) file extensions supported by this provider.
+     *
+     * By default this is the same as supportedOutputVectorLayerExtensions(). Providers which utilize different
+     * formats for geometry-less layers can override this method to return a different list of supported formats.
+     *
+     * \see supportedOutputVectorLayerExtensions()
+     * \see defaultVectorFileExtension()
+     * \see supportedOutputRasterLayerExtensions()
+     * \see supportsNonFileBasedOutput()
+     *
+     * \since QGIS 3.4.3
+     */
+    virtual QStringList supportedOutputTableExtensions() const;
 
     /**
      * Returns the default file extension to use for vector outputs created by the

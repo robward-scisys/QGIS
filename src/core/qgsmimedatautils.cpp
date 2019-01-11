@@ -51,7 +51,7 @@ QgsMimeDataUtils::Uri::Uri( QString &encData )
     supportedFormats.clear();
   }
 
-  QgsDebugMsg( QString( "type:%1 key:%2 name:%3 uri:%4 supportedCRS:%5 supportedFormats:%6" )
+  QgsDebugMsg( QStringLiteral( "type:%1 key:%2 name:%3 uri:%4 supportedCRS:%5 supportedFormats:%6" )
                .arg( layerType, providerKey, name, uri,
                      supportedCrs.join( ", " ),
                      supportedFormats.join( ", " ) ) );
@@ -85,7 +85,7 @@ QgsVectorLayer *QgsMimeDataUtils::Uri::vectorLayer( bool &owner, QString &error 
       return nullptr;
     }
     QString layerId = url.queryItemValue( QStringLiteral( "layerid" ) );
-    QgsVectorLayer *vectorLayer = qobject_cast< QgsVectorLayer *>( QgsProject::instance()->mapLayer( layerId ) );
+    QgsVectorLayer *vectorLayer = QgsProject::instance()->mapLayer<QgsVectorLayer *>( layerId );
     if ( !vectorLayer )
     {
       error = QObject::tr( "Cannot get memory layer." );

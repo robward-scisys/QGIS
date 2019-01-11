@@ -25,6 +25,7 @@
 
 #include "qgsdataitem.h"
 #include "qgsmaphittest.h"
+#include "qgsmaplayer.h"
 #include "qgsmaplayerlegend.h"
 #include "qgsmaplayerstylemanager.h"
 #include "qgspluginlayer.h"
@@ -259,17 +260,27 @@ QVariant QgsLayerTreeModel::data( const QModelIndex &index, int role ) const
     QFont f( QgsLayerTree::isLayer( node ) ? mFontLayer : ( QgsLayerTree::isGroup( node ) ? mFontGroup : QFont() ) );
     if ( index == mCurrentIndex )
       f.setUnderline( true );
-    return f;
-  }
-  else if ( role == Qt::ForegroundRole )
-  {
-    QBrush brush( Qt::black, Qt::SolidPattern );
     if ( QgsLayerTree::isLayer( node ) )
     {
       const QgsMapLayer *layer = QgsLayerTree::toLayer( node )->layer();
       if ( ( !node->isVisible() && ( !layer || layer->isSpatial() ) ) || ( layer && !layer->isInScaleRange( mLegendMapViewScale ) ) )
       {
-        brush.setColor( Qt::lightGray );
+        f.setItalic( !f.italic() );
+      }
+    }
+    return f;
+  }
+  else if ( role == Qt::ForegroundRole )
+  {
+    QBrush brush( qApp->palette().color( QPalette::Text ), Qt::SolidPattern );
+    if ( QgsLayerTree::isLayer( node ) )
+    {
+      const QgsMapLayer *layer = QgsLayerTree::toLayer( node )->layer();
+      if ( ( !node->isVisible() && ( !layer || layer->isSpatial() ) ) || ( layer && !layer->isInScaleRange( mLegendMapViewScale ) ) )
+      {
+        QColor fadedTextColor = brush.color();
+        fadedTextColor.setAlpha( 128 );
+        brush.setColor( fadedTextColor );
       }
     }
     return brush;
@@ -287,7 +298,7 @@ QVariant QgsLayerTreeModel::data( const QModelIndex &index, int role ) const
 
         title = "<b>" + title.toHtmlEscaped() + "</b>";
 
-        if ( layer->crs().isValid() )
+        if ( layer->isSpatial() && layer->crs().isValid() )
         {
           if ( QgsVectorLayer *vl = qobject_cast<QgsVectorLayer *>( layer ) )
             title += tr( " (%1 - %2)" ).arg( QgsWkbTypes::displayString( vl->wkbType() ), layer->crs().authid() ).toHtmlEscaped();
@@ -560,7 +571,7 @@ void QgsLayerTreeModel::setLayerTreeNodeFont( int nodeType, const QFont &font )
   }
   else
   {
-    QgsDebugMsgLevel( "invalid node type", 4 );
+    QgsDebugMsgLevel( QStringLiteral( "invalid node type" ), 4 );
   }
 }
 
@@ -573,7 +584,7 @@ QFont QgsLayerTreeModel::layerTreeNodeFont( int nodeType ) const
     return mFontLayer;
   else
   {
-    QgsDebugMsgLevel( "invalid node type", 4 );
+    QgsDebugMsgLevel( QStringLiteral( "invalid node type" ), 4 );
     return QFont();
   }
 }

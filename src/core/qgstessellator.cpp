@@ -437,7 +437,7 @@ void QgsTessellator::addPolygon( const QgsPolygon &polygon, float extrusionHeigh
       }
     }
 
-    if ( !_check_intersecting_rings( *polygonNew.get() ) )
+    if ( !_check_intersecting_rings( *polygonNew ) )
     {
       // skip the polygon - it would cause a crash inside poly2tri library
       QgsMessageLog::logMessage( QObject::tr( "polygon rings self-intersect or intersect each other - skipping" ), QObject::tr( "3D" ) );
@@ -542,7 +542,7 @@ QgsPoint getPointFromData( QVector< float >::const_iterator &it )
 
 int QgsTessellator::dataVerticesCount() const
 {
-  return mData.size() / 3;
+  return mData.size() / ( mAddNormals ? 6 : 3 );
 }
 
 std::unique_ptr<QgsMultiPolygon> QgsTessellator::asMultiPolygon() const

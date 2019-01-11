@@ -37,25 +37,25 @@ QgsEllipseSymbolLayerWidget::QgsEllipseSymbolLayerWidget( QgsVectorLayer *vl, QW
   connect( mHorizontalAnchorComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsEllipseSymbolLayerWidget::mHorizontalAnchorComboBox_currentIndexChanged );
   connect( mVerticalAnchorComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsEllipseSymbolLayerWidget::mVerticalAnchorComboBox_currentIndexChanged );
 
-  mSymbolWidthUnitWidget->setUnits( QgsUnitTypes::RenderUnitList() << QgsUnitTypes::RenderMillimeters << QgsUnitTypes::RenderMapUnits << QgsUnitTypes::RenderPixels
+  mSymbolWidthUnitWidget->setUnits( QgsUnitTypes::RenderUnitList() << QgsUnitTypes::RenderMillimeters << QgsUnitTypes::RenderMetersInMapUnits << QgsUnitTypes::RenderMapUnits << QgsUnitTypes::RenderPixels
                                     << QgsUnitTypes::RenderPoints << QgsUnitTypes::RenderInches );
-  mSymbolHeightUnitWidget->setUnits( QgsUnitTypes::RenderUnitList() << QgsUnitTypes::RenderMillimeters << QgsUnitTypes::RenderMapUnits << QgsUnitTypes::RenderPixels
+  mSymbolHeightUnitWidget->setUnits( QgsUnitTypes::RenderUnitList() << QgsUnitTypes::RenderMillimeters << QgsUnitTypes::RenderMetersInMapUnits << QgsUnitTypes::RenderMapUnits << QgsUnitTypes::RenderPixels
                                      << QgsUnitTypes::RenderPoints << QgsUnitTypes::RenderInches );
-  mStrokeWidthUnitWidget->setUnits( QgsUnitTypes::RenderUnitList() << QgsUnitTypes::RenderMillimeters << QgsUnitTypes::RenderMapUnits << QgsUnitTypes::RenderPixels
+  mStrokeWidthUnitWidget->setUnits( QgsUnitTypes::RenderUnitList() << QgsUnitTypes::RenderMillimeters << QgsUnitTypes::RenderMetersInMapUnits << QgsUnitTypes::RenderMapUnits << QgsUnitTypes::RenderPixels
                                     << QgsUnitTypes::RenderPoints << QgsUnitTypes::RenderInches );
-  mOffsetUnitWidget->setUnits( QgsUnitTypes::RenderUnitList() << QgsUnitTypes::RenderMillimeters << QgsUnitTypes::RenderMapUnits << QgsUnitTypes::RenderPixels
+  mOffsetUnitWidget->setUnits( QgsUnitTypes::RenderUnitList() << QgsUnitTypes::RenderMillimeters << QgsUnitTypes::RenderMetersInMapUnits << QgsUnitTypes::RenderMapUnits << QgsUnitTypes::RenderPixels
                                << QgsUnitTypes::RenderPoints << QgsUnitTypes::RenderInches );
 
   btnChangeColorFill->setAllowOpacity( true );
   btnChangeColorFill->setColorDialogTitle( tr( "Select Fill Color" ) );
   btnChangeColorFill->setContext( QStringLiteral( "symbology" ) );
   btnChangeColorFill->setShowNoColor( true );
-  btnChangeColorFill->setNoColorString( tr( "Transparent fill" ) );
+  btnChangeColorFill->setNoColorString( tr( "Transparent Fill" ) );
   btnChangeColorStroke->setAllowOpacity( true );
   btnChangeColorStroke->setColorDialogTitle( tr( "Select Stroke Color" ) );
   btnChangeColorStroke->setContext( QStringLiteral( "symbology" ) );
   btnChangeColorStroke->setShowNoColor( true );
-  btnChangeColorStroke->setNoColorString( tr( "Transparent stroke" ) );
+  btnChangeColorStroke->setNoColorString( tr( "Transparent Stroke" ) );
 
   spinOffsetX->setClearValue( 0.0 );
   spinOffsetY->setClearValue( 0.0 );

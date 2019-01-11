@@ -75,6 +75,7 @@ class proximity(GdalAlgorithm):
                                                             self.tr('Input layer')))
         self.addParameter(QgsProcessingParameterBand(self.BAND,
                                                      self.tr('Band number'),
+                                                     1,
                                                      parentLayerParameterName=self.INPUT))
         self.addParameter(QgsProcessingParameterString(self.VALUES,
                                                        self.tr('A list of pixel values in the source image to be considered target pixels'),
@@ -102,7 +103,7 @@ class proximity(GdalAlgorithm):
                                                        optional=True))
 
         options_param = QgsProcessingParameterString(self.OPTIONS,
-                                                     self.tr('Additional creation parameters'),
+                                                     self.tr('Additional creation options'),
                                                      defaultValue='',
                                                      optional=True)
         options_param.setFlags(options_param.flags() | QgsProcessingParameterDefinition.FlagAdvanced)
@@ -185,12 +186,8 @@ class proximity(GdalAlgorithm):
         arguments.append(inLayer.source())
         arguments.append(out)
 
-        commands = []
+        commands = [self.commandName() + '.py', GdalUtils.escapeAndJoin(arguments)]
         if isWindows():
-            commands = ['cmd.exe', '/C ', self.commandName() + '.bat',
-                        GdalUtils.escapeAndJoin(arguments)]
-        else:
-            commands = [self.commandName() + '.py',
-                        GdalUtils.escapeAndJoin(arguments)]
+            commands.insert(0, 'python3')
 
         return commands

@@ -25,6 +25,7 @@
 #include "qgsofflineediting.h"
 #include "qgstest.h"
 #include "qgsvectorlayerref.h"
+#include "qgslayertree.h"
 
 /**
  * \ingroup UnitTests
@@ -41,6 +42,7 @@ class TestQgsOfflineEditing : public QObject
     QStringList layerIds;
     long numberOfFeatures;
     int numberOfFields;
+    QTemporaryDir tempDir;
 
   private slots:
     void initTestCase();// will be called before the first testfunction is executed.
@@ -75,8 +77,12 @@ void TestQgsOfflineEditing::cleanupTestCase()
 void TestQgsOfflineEditing::init()
 {
   QString myFileName( TEST_DATA_DIR ); //defined in CmakeLists.txt
-  myFileName = myFileName + "/points.shp";
-  QFileInfo myMapFileInfo( myFileName );
+  QString myTempDirName = tempDir.path();
+  QFile::copy( myFileName + "/points.shp", myTempDirName + "/points.shp" );
+  QFile::copy( myFileName + "/points.shx", myTempDirName + "/points.shx" );
+  QFile::copy( myFileName + "/points.dbf", myTempDirName + "/points.dbf" );
+  QString myTempFileName = myTempDirName + "/points.shp";
+  QFileInfo myMapFileInfo( myTempFileName );
   mpLayer = new QgsVectorLayer( myMapFileInfo.filePath(),
                                 myMapFileInfo.completeBaseName(), QStringLiteral( "ogr" ) );
   QgsProject::instance()->addMapLayer( mpLayer );
@@ -102,12 +108,21 @@ void TestQgsOfflineEditing::createSpatialiteAndSynchronizeBack()
   QCOMPARE( mpLayer->featureCount(), numberOfFeatures );
   QCOMPARE( mpLayer->fields().size(), numberOfFields );
 
+  //set on LayerTreeNode showFeatureCount property
+  QgsLayerTreeLayer *layerTreelayer = QgsProject::instance()->layerTreeRoot()->findLayer( mpLayer->id() );
+  layerTreelayer->setCustomProperty( QStringLiteral( "showFeatureCount" ), 1 );
+
   //convert
   mOfflineEditing->convertToOfflineProject( offlineDataPath, offlineDbFile, layerIds, false, QgsOfflineEditing::SpatiaLite );
 
   mpLayer = qobject_cast<QgsVectorLayer *>( QgsProject::instance()->mapLayers().first() );
   QCOMPARE( mpLayer->name(), QStringLiteral( "points (offline)" ) );
   QCOMPARE( mpLayer->featureCount(), numberOfFeatures );
+  //check LayerTreeNode showFeatureCount property
+  layerTreelayer = QgsProject::instance()->layerTreeRoot()->findLayer( mpLayer->id() );
+  QCOMPARE( layerTreelayer->customProperty( QStringLiteral( "showFeatureCount" ), 0 ).toInt(), 1 );
+  //unset on LayerTreeNode showFeatureCount property
+  layerTreelayer->setCustomProperty( QStringLiteral( "showFeatureCount" ), 0 );
 
   //synchronize back
   mOfflineEditing->synchronize();
@@ -116,6 +131,10 @@ void TestQgsOfflineEditing::createSpatialiteAndSynchronizeBack()
   QCOMPARE( mpLayer->name(), QStringLiteral( "points" ) );
   QCOMPARE( mpLayer->featureCount(), numberOfFeatures );
   QCOMPARE( mpLayer->fields().size(), numberOfFields );
+
+  //check LayerTreeNode showFeatureCount property
+  layerTreelayer = QgsProject::instance()->layerTreeRoot()->findLayer( mpLayer->id() );
+  QCOMPARE( layerTreelayer->customProperty( QStringLiteral( "showFeatureCount" ), 0 ).toInt(), 0 );
 }
 
 void TestQgsOfflineEditing::createGeopackageAndSynchronizeBack()
@@ -124,6 +143,15 @@ void TestQgsOfflineEditing::createGeopackageAndSynchronizeBack()
   QCOMPARE( mpLayer->name(), QStringLiteral( "points" ) );
   QCOMPARE( mpLayer->featureCount(), numberOfFeatures );
   QCOMPARE( mpLayer->fields().size(), numberOfFields );
+  QgsFeature firstFeatureBeforeAction;
+  QgsFeatureIterator it = mpLayer->getFeatures();
+  it.nextFeature( firstFeatureBeforeAction );
+
+  connect( mOfflineEditing, &QgsOfflineEditing::warning, this, []( const QString & title, const QString & message ) { qDebug() << title << message; } );
+
+  //set on LayerTreeNode showFeatureCount property
+  QgsLayerTreeLayer *layerTreelayer = QgsProject::instance()->layerTreeRoot()->findLayer( mpLayer->id() );
+  layerTreelayer->setCustomProperty( QStringLiteral( "showFeatureCount" ), 1 );
 
   //convert
   mOfflineEditing->convertToOfflineProject( offlineDataPath, offlineDbFile, layerIds, false, QgsOfflineEditing::GPKG );
@@ -133,14 +161,56 @@ void TestQgsOfflineEditing::createGeopackageAndSynchronizeBack()
   QCOMPARE( mpLayer->featureCount(), numberOfFeatures );
   //comparing with the number +1 because GPKG created an fid
   QCOMPARE( mpLayer->fields().size(), numberOfFields + 1 );
+  //check LayerTreeNode showFeatureCount property
+  layerTreelayer = QgsProject::instance()->layerTreeRoot()->findLayer( mpLayer->id() );
+  QCOMPARE( layerTreelayer->customProperty( QStringLiteral( "showFeatureCount" ), 0 ).toInt(), 1 );
+
+  QgsFeature firstFeatureInAction;
+  it = mpLayer->getFeatures();
+  it.nextFeature( firstFeatureInAction );
+
+  //compare some values
+  QCOMPARE( firstFeatureInAction.attribute( QStringLiteral( "Class" ) ).toString(), firstFeatureBeforeAction.attribute( QStringLiteral( "Class" ) ).toString() );
+  QCOMPARE( firstFeatureInAction.attribute( QStringLiteral( "Heading" ) ).toString(), firstFeatureBeforeAction.attribute( QStringLiteral( "Heading" ) ).toString() );
+  QCOMPARE( firstFeatureInAction.attribute( QStringLiteral( "Cabin Crew" ) ).toString(), firstFeatureBeforeAction.attribute( QStringLiteral( "Cabin Crew" ) ).toString() );
+
+  QgsFeature newFeature( mpLayer->dataProvider()->fields() );
+  newFeature.setAttribute( QStringLiteral( "Class" ), QStringLiteral( "Superjet" ) );
+  mpLayer->startEditing();
+  mpLayer->addFeature( newFeature );
+  mpLayer->commitChanges();
+  QCOMPARE( mpLayer->featureCount(), numberOfFeatures + 1 );
+
+  //unset on LayerTreeNode showFeatureCount property
+  layerTreelayer->setCustomProperty( QStringLiteral( "showFeatureCount" ), 0 );
 
   //synchronize back
   mOfflineEditing->synchronize();
 
   mpLayer = qobject_cast<QgsVectorLayer *>( QgsProject::instance()->mapLayers().first() );
   QCOMPARE( mpLayer->name(), QStringLiteral( "points" ) );
-  QCOMPARE( mpLayer->featureCount(), numberOfFeatures );
+  QCOMPARE( mpLayer->dataProvider()->featureCount(), numberOfFeatures + 1 );
   QCOMPARE( mpLayer->fields().size(), numberOfFields );
+  //check LayerTreeNode showFeatureCount property
+  layerTreelayer = QgsProject::instance()->layerTreeRoot()->findLayer( mpLayer->id() );
+  QCOMPARE( layerTreelayer->customProperty( QStringLiteral( "showFeatureCount" ), 0 ).toInt(), 0 );
+
+  //get last feature
+  QgsFeature f = mpLayer->getFeature( mpLayer->dataProvider()->featureCount() - 1 );
+  qDebug() << "FID:" << f.id() << "Class:" << f.attribute( "Class" ).toString();
+  QCOMPARE( f.attribute( QStringLiteral( "Class" ) ).toString(), QStringLiteral( "Superjet" ) );
+
+  QgsFeature firstFeatureAfterAction;
+  it = mpLayer->getFeatures();
+  it.nextFeature( firstFeatureAfterAction );
+
+  QCOMPARE( firstFeatureAfterAction, firstFeatureBeforeAction );
+
+  //and delete the feature again
+  QgsFeatureIds idsToClean;
+  idsToClean << f.id();
+  mpLayer->dataProvider()->deleteFeatures( idsToClean );
+  QCOMPARE( mpLayer->dataProvider()->featureCount(), numberOfFeatures );
 }
 
 QGSTEST_MAIN( TestQgsOfflineEditing )

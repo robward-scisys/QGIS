@@ -65,15 +65,9 @@ QgsQuickFeatureLayerPairs QgsQuickIdentifyKit::identify( const QPointF &point, Q
   }
   else
   {
-    QStringList noIdentifyLayerIdList;
-    if ( mMapSettings->project() )
-    {
-      noIdentifyLayerIdList = mMapSettings->project()->nonIdentifiableLayers();
-    }
-
     for ( QgsMapLayer *layer : mMapSettings->mapSettings().layers() )
     {
-      if ( mMapSettings->project() && noIdentifyLayerIdList.contains( layer->id() ) )
+      if ( mMapSettings->project() && !layer->flags().testFlag( QgsMapLayer::Identifiable ) )
         continue;
 
       QgsVectorLayer *vl = qobject_cast<QgsVectorLayer *>( layer );
@@ -85,6 +79,11 @@ QgsQuickFeatureLayerPairs QgsQuickIdentifyKit::identify( const QPointF &point, Q
         {
           results.append( QgsQuickFeatureLayerPair( feature, vl ) );
         }
+      }
+      if ( mIdentifyMode == IdentifyMode::TopDownStopAtFirst && !results.isEmpty() )
+      {
+        QgsDebugMsg( QStringLiteral( "IdentifyKit identified %1 results with TopDownStopAtFirst mode." ).arg( results.count() ) );
+        return results;
       }
     }
 
@@ -180,7 +179,7 @@ QgsFeatureList QgsQuickIdentifyKit::identifyVectorLayer( QgsVectorLayer *layer, 
   }
   catch ( QgsCsException &cse )
   {
-    QgsDebugMsg( tr( "Invalid point and proceed with no features found." ) );
+    QgsDebugMsg( QStringLiteral( "Invalid point, proceed without a found features." ) );
     Q_UNUSED( cse );
   }
 

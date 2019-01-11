@@ -23,7 +23,7 @@ ELSE(TXT2TAGS_EXECUTABLE)
   )
 ENDIF(TXT2TAGS_EXECUTABLE)
 
-SET(QGIS_DOC_FILES ${QGIS_DOC_FILES} index.html news.html developersmap.html nohelp.html contributors.json favicon.ico style.css AUTHORS CONTRIBUTORS SPONSORS DONORS TRANSLATORS LICENSE)
+SET(QGIS_DOC_FILES ${QGIS_DOC_FILES} index.html news.html developersmap.html nohelp.html favicon.ico style.css AUTHORS CONTRIBUTORS SPONSORS DONORS TRANSLATORS LICENSE)
 
 INSTALL(FILES ${QGIS_DOC_FILES} DESTINATION ${QGIS_DATA_DIR}/doc)
 INSTALL(FILES ../images/icons/qgis-icon-60x60.png DESTINATION ${QGIS_DATA_DIR}/doc/images)
@@ -78,6 +78,7 @@ IF(WITH_APIDOC)
       ${CMAKE_SOURCE_DIR}/src/core/raster
       ${CMAKE_SOURCE_DIR}/src/core/scalebar
       ${CMAKE_SOURCE_DIR}/src/core/symbology
+      ${CMAKE_SOURCE_DIR}/src/core/validity
       ${CMAKE_SOURCE_DIR}/src/gui
       ${CMAKE_SOURCE_DIR}/src/gui/auth
       ${CMAKE_SOURCE_DIR}/src/gui/attributetable
@@ -85,8 +86,11 @@ IF(WITH_APIDOC)
       ${CMAKE_SOURCE_DIR}/src/gui/editorwidgets/core
       ${CMAKE_SOURCE_DIR}/src/gui/effects
       ${CMAKE_SOURCE_DIR}/src/gui/layertree
+      ${CMAKE_SOURCE_DIR}/src/gui/layout
       ${CMAKE_SOURCE_DIR}/src/gui/locator
+      ${CMAKE_SOURCE_DIR}/src/gui/ogr
       ${CMAKE_SOURCE_DIR}/src/gui/processing
+      ${CMAKE_SOURCE_DIR}/src/gui/processing/models
       ${CMAKE_SOURCE_DIR}/src/gui/raster
       ${CMAKE_SOURCE_DIR}/src/gui/symbology
       ${CMAKE_SOURCE_DIR}/src/analysis
@@ -95,6 +99,7 @@ IF(WITH_APIDOC)
       ${CMAKE_SOURCE_DIR}/src/analysis/processing
       ${CMAKE_SOURCE_DIR}/src/analysis/raster
       ${CMAKE_SOURCE_DIR}/src/analysis/vector
+      ${CMAKE_SOURCE_DIR}/src/analysis/vector/geometry_checker
       ${CMAKE_SOURCE_DIR}/src/3d
       ${CMAKE_SOURCE_DIR}/src/3d/chunks
       ${CMAKE_SOURCE_DIR}/src/3d/symbols

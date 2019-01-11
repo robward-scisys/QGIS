@@ -154,6 +154,15 @@ class CORE_EXPORT QgsSettings : public QObject
     void beginGroup( const QString &prefix, QgsSettings::Section section = QgsSettings::NoSection );
     //! Resets the group to what it was before the corresponding beginGroup() call.
     void endGroup();
+
+    /**
+     * Returns the current group.
+     * \see beginGroup()
+     * \see endGroup()
+     * \since QGIS 3.6
+     */
+    QString group() const;
+
     //! Returns a list of all keys, including subkeys, that can be read using the QSettings object.
     QStringList allKeys() const;
     //! Returns a list of all top-level keys that can be read using the QSettings object.
@@ -239,7 +248,7 @@ class CORE_EXPORT QgsSettings : public QObject
       Q_ASSERT( metaEnum.isValid() );
       if ( !metaEnum.isValid() )
       {
-        QgsDebugMsg( "Invalid metaenum. Enum probably misses Q_ENUM or Q_FLAG declaration." );
+        QgsDebugMsg( QStringLiteral( "Invalid metaenum. Enum probably misses Q_ENUM or Q_FLAG declaration." ) );
       }
 
       T v;
@@ -295,7 +304,7 @@ class CORE_EXPORT QgsSettings : public QObject
       }
       else
       {
-        QgsDebugMsg( "Invalid metaenum. Enum probably misses Q_ENUM or Q_FLAG declaration." );
+        QgsDebugMsg( QStringLiteral( "Invalid metaenum. Enum probably misses Q_ENUM or Q_FLAG declaration." ) );
       }
     }
 
@@ -317,7 +326,7 @@ class CORE_EXPORT QgsSettings : public QObject
       Q_ASSERT( metaEnum.isValid() );
       if ( !metaEnum.isValid() )
       {
-        QgsDebugMsg( "Invalid metaenum. Enum probably misses Q_ENUM or Q_FLAG declaration." );
+        QgsDebugMsg( QStringLiteral( "Invalid metaenum. Enum probably misses Q_ENUM or Q_FLAG declaration." ) );
       }
 
       T v;
@@ -373,7 +382,7 @@ class CORE_EXPORT QgsSettings : public QObject
       }
       else
       {
-        QgsDebugMsg( "Invalid metaenum. Enum probably misses Q_ENUM or Q_FLAG declaration." );
+        QgsDebugMsg( QStringLiteral( "Invalid metaenum. Enum probably misses Q_ENUM or Q_FLAG declaration." ) );
       }
     }
 #endif

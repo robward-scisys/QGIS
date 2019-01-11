@@ -28,6 +28,7 @@ __revision__ = '$Format:%H$'
 import shutil
 import os
 import sys
+from functools import partial
 
 from qgis.core import (QgsApplication,
                        QgsProcessingUtils,
@@ -35,12 +36,14 @@ from qgis.core import (QgsApplication,
                        QgsDataItemProvider,
                        QgsDataProvider,
                        QgsDataItem,
+                       QgsMapLayer,
                        QgsMimeDataUtils)
 from qgis.gui import (QgsOptionsWidgetFactory,
                       QgsCustomDropHandler)
 from qgis.PyQt.QtCore import Qt, QCoreApplication, QDir, QFileInfo
 from qgis.PyQt.QtWidgets import QMenu, QAction
 from qgis.PyQt.QtGui import QIcon, QKeySequence
+from qgis.utils import iface
 
 from processing.core.Processing import Processing
 from processing.gui.AlgorithmDialog import AlgorithmDialog
@@ -48,7 +51,8 @@ from processing.gui.ProcessingToolbox import ProcessingToolbox
 from processing.gui.HistoryDialog import HistoryDialog
 from processing.gui.ConfigDialog import ConfigOptionsPage
 from processing.gui.ResultsDock import ResultsDock
-from processing.gui.AlgorithmLocatorFilter import AlgorithmLocatorFilter
+from processing.gui.AlgorithmLocatorFilter import (AlgorithmLocatorFilter,
+                                                   InPlaceAlgorithmLocatorFilter)
 from processing.modeler.ModelerDialog import ModelerDialog
 from processing.tools.system import tempHelpFolder
 from processing.gui.menus import removeMenus, initializeMenus, createMenus
@@ -83,7 +87,7 @@ class ProcessingDropHandler(QgsCustomDropHandler):
             return False
 
         alg.setProvider(QgsApplication.processingRegistry().providerById('model'))
-        dlg = AlgorithmDialog(alg)
+        dlg = AlgorithmDialog(alg, parent=iface.mainWindow())
         dlg.show()
         return True
 
@@ -168,6 +172,10 @@ class ProcessingPlugin:
         QgsApplication.dataItemProviderRegistry().addProvider(self.item_provider)
         self.locator_filter = AlgorithmLocatorFilter()
         iface.registerLocatorFilter(self.locator_filter)
+        # Invalidate the locator filter for in-place when active layer changes
+        iface.currentLayerChanged.connect(lambda _: self.iface.invalidateLocatorResults())
+        self.edit_features_locator_filter = InPlaceAlgorithmLocatorFilter()
+        iface.registerLocatorFilter(self.edit_features_locator_filter)
         Processing.initialize()
 
     def initGui(self):
@@ -226,6 +234,19 @@ class ProcessingPlugin:
         self.resultsDock.visibilityChanged.connect(self.resultsAction.setChecked)
         self.resultsAction.toggled.connect(self.resultsDock.setUserVisible)
 
+        self.toolbox.processingToolbar.addSeparator()
+
+        self.editInPlaceAction = QAction(
+            QgsApplication.getThemeIcon("/mActionProcessSelected.svg"),
+            self.tr('Edit Features In-Place'), self.iface.mainWindow())
+        self.editInPlaceAction.setObjectName('editInPlaceFeatures')
+        self.editInPlaceAction.setCheckable(True)
+        self.editInPlaceAction.toggled.connect(self.editSelected)
+        self.menu.addAction(self.editInPlaceAction)
+        self.toolbox.processingToolbar.addAction(self.editInPlaceAction)
+
+        self.toolbox.processingToolbar.addSeparator()
+
         self.optionsAction = QAction(
             QgsApplication.getThemeIcon("/mActionOptions.svg"),
             self.tr('Options'), self.iface.mainWindow())
@@ -241,6 +262,26 @@ class ProcessingPlugin:
 
         initializeMenus()
         createMenus()
+
+        # In-place editing button state sync
+        self.iface.currentLayerChanged.connect(self.sync_in_place_button_state)
+        self.iface.mapCanvas().selectionChanged.connect(self.sync_in_place_button_state)
+        self.iface.actionToggleEditing().triggered.connect(partial(self.sync_in_place_button_state, None))
+        self.sync_in_place_button_state()
+
+    def sync_in_place_button_state(self, layer=None):
+        """Synchronise the button state with layer state"""
+
+        if layer is None:
+            layer = self.iface.activeLayer()
+
+        old_enabled_state = self.editInPlaceAction.isEnabled()
+
+        new_enabled_state = layer is not None and layer.type() == QgsMapLayer.VectorLayer
+        self.editInPlaceAction.setEnabled(new_enabled_state)
+
+        if new_enabled_state != old_enabled_state:
+            self.toolbox.set_in_place_edit_mode(new_enabled_state and self.editInPlaceAction.isChecked())
 
     def openProcessingOptions(self):
         self.iface.showOptionsDialog(self.iface.mainWindow(), currentPage='processingOptions')
@@ -273,6 +314,7 @@ class ProcessingPlugin:
 
         self.iface.unregisterOptionsWidgetFactory(self.options_factory)
         self.iface.deregisterLocatorFilter(self.locator_filter)
+        self.iface.deregisterLocatorFilter(self.edit_features_locator_filter)
         self.iface.unregisterCustomDropHandler(self.drop_handler)
         QgsApplication.dataItemProviderRegistry().removeProvider(self.item_provider)
 
@@ -306,3 +348,6 @@ class ProcessingPlugin:
 
     def tr(self, message):
         return QCoreApplication.translate('ProcessingPlugin', message)
+
+    def editSelected(self, enabled):
+        self.toolbox.set_in_place_edit_mode(enabled)

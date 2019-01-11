@@ -11,11 +11,12 @@ CMAKE_POLICY (SET CMP0053 NEW)
 #############################################################
 # Project and version
 SET(CPACK_PACKAGE_VERSION_MAJOR "3")
-SET(CPACK_PACKAGE_VERSION_MINOR "3")
+SET(CPACK_PACKAGE_VERSION_MINOR "5")
 SET(CPACK_PACKAGE_VERSION_PATCH "0")
 SET(COMPLETE_VERSION ${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH})
 SET(RELEASE_NAME "Master")
 PROJECT(qgis VERSION ${COMPLETE_VERSION})
+
 IF (APPLE)
   SET(QGIS_APP_NAME "QGIS")
 ELSE (APPLE)
@@ -28,6 +29,34 @@ MESSAGE(STATUS "QGIS version: ${COMPLETE_VERSION} ${RELEASE_NAME} (${QGIS_VERSIO
 
 
 #############################################################
+# Configure OpenCL if available
+SET(HAVE_OPENCL FALSE)
+IF (${CMAKE_HOST_SYSTEM_NAME} MATCHES "BSD$")
+  OPTION(USE_OPENCL "Use OpenCL" OFF)
+ELSE (${CMAKE_HOST_SYSTEM_NAME} MATCHES "BSD$")
+  OPTION(USE_OPENCL "Use OpenCL" ON)
+ENDIF (${CMAKE_HOST_SYSTEM_NAME} MATCHES "BSD$")
+IF (USE_OPENCL)
+    FIND_PACKAGE(OpenCL)
+    IF(${OpenCL_FOUND})
+        SET(HAVE_OPENCL TRUE)
+        # Fixup for standard FindOpenCL module not assinging proper framework headers directory
+        IF (APPLE AND "${OpenCL_INCLUDE_DIR}" MATCHES "OpenCL\\.framework/?$")
+            SET(OpenCL_INCLUDE_DIR "${OpenCL_INCLUDE_DIR}/Headers" CACHE PATH "" FORCE)
+            SET(OpenCL_INCLUDE_DIRS ${OpenCL_INCLUDE_DIR})
+        ENDIF ()
+        FIND_PACKAGE(OpenCLhpp)
+        IF(NOT OPENCL_HPP_FOUND)
+            # Use internal headers copied from OpenCL-CLHPP project
+            SET(OPENCL_HPP_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/external/opencl-clhpp/include CACHE PATH "" FORCE)
+            MESSAGE(STATUS "Couldn't find OpenCL C++ headers, using internal: ${OPENCL_HPP_INCLUDE_DIR}")
+        ENDIF(NOT OPENCL_HPP_FOUND)
+        SET(OpenCL_INCLUDE_DIRS ${OpenCL_INCLUDE_DIRS} ${OPENCL_HPP_INCLUDE_DIR})
+    ELSE(${OpenCL_FOUND})
+        MESSAGE(STATUS "Couldn't find OpenCL: support DISABLED")
+    ENDIF(${OpenCL_FOUND})
+ENDIF(USE_OPENCL)
+
 # Configure CCache if available
 IF(NOT MSVC)
   option(USE_CCACHE "Use ccache" ON)
@@ -39,6 +68,20 @@ IF(NOT MSVC)
     endif(CCACHE_FOUND)
   endif(USE_CCACHE)
 endif(NOT MSVC)
+
+IF (IOS)
+    SET (DEFAULT_FORCE_STATIC_LIBS TRUE)
+ELSE (IOS)
+    SET (DEFAULT_FORCE_STATIC_LIBS FALSE)
+ENDIF (IOS)
+SET (FORCE_STATIC_LIBS ${DEFAULT_FORCE_STATIC_LIBS} CACHE BOOL "Determines whether libraries should be static only")
+MARK_AS_ADVANCED(FORCE_STATIC_LIBS)
+
+IF(FORCE_STATIC_LIBS)
+  SET(LIBRARY_TYPE STATIC)
+ELSE (FORCE_STATIC_LIBS)
+  SET(LIBRARY_TYPE SHARED)
+ENDIF (FORCE_STATIC_LIBS)
 
 # in generated makefiles use relative paths so the project dir is moveable
 # Note commented out since it cause problems but it would be nice to resolve these and enable
@@ -69,6 +112,8 @@ IF(WITH_CORE)
 
   SET (WITH_GUI TRUE CACHE BOOL "Determines whether QGIS GUI library (and everything built on top of it) should be built")
 
+  SET (WITH_ANALYSIS TRUE CACHE BOOL "Determines whether QGIS analysis library should be built")
+
   SET (WITH_DESKTOP TRUE CACHE BOOL "Determines whether QGIS desktop should be built")
 
   SET (WITH_3D FALSE CACHE BOOL "Determines whether QGIS 3D library should be built")
@@ -92,11 +137,18 @@ IF(WITH_CORE)
   IF (NOT WITH_GUI)
     SET (HAVE_GUI FALSE)    # used in qgsconfig.h
     # force value of some options
-    SET(WITH_DESKTOP FALSE)
-    SET(WITH_CUSTOM_WIDGETS FALSE)
-    SET(WITH_SERVER FALSE)  # for some reason server also uses GUI library
+    IF(WITH_DESKTOP)
+      MESSAGE(FATAL_ERROR "Desktop cannot be built without gui. Enable WITH_GUI or disable WITH_DESKTOP.")
+    ENDIF(WITH_DESKTOP)
+    IF(WITH_CUSTOM_WIDGETS)
+      MESSAGE(FATAL_ERROR "Custom widgets cannot be built without gui. Enable WITH_GUI or disable WITH_CUSTOM_WIDGETS.")
+    ENDIF(WITH_CUSTOM_WIDGETS)
   ELSE ()
     SET (HAVE_GUI TRUE)     # used in qgsconfig.h
+  ENDIF()
+
+  IF ( WITH_DESKTOP AND NOT WITH_ANALYSIS )
+    MESSAGE(FATAL_ERROR "Desktop cannot be built without analysis")
   ENDIF()
 
   # try to configure and build MDAL support
@@ -284,14 +336,16 @@ IF(WITH_CORE)
   ENDIF(WITH_QTWEBKIT)
   #############################################################
   # search for Qt5
-  IF (WITH_3D)
-    # for 3D support we strictly require Qt >= 5.9
-    # (Qt 3D was introduced in 5.7 but it is not stable enough in that branch)
-    # Qt 5.8 is missing some classes, https://github.com/qgis/QGIS/pull/5203#discussion_r142319862
-    SET(QT_MIN_VERSION 5.9.0)
-  ELSE ()
-    SET(QT_MIN_VERSION 5.4.0)
-  ENDIF()
+  SET(QT_MIN_VERSION 5.9.0)
+
+  # Use Qt5SerialPort optionally for GPS
+  SET (WITH_QT5SERIALPORT TRUE CACHE BOOL "Determines whether Qt5SerialPort should be tried for GPS positioning")
+  IF (WITH_QT5SERIALPORT)
+      FIND_PACKAGE(Qt5SerialPort REQUIRED)
+      # following variable is used in qgsconfig.h
+      SET (HAVE_QT5SERIALPORT TRUE)
+  ENDIF(WITH_QT5SERIALPORT)
+
   FIND_PACKAGE(Qt5Core QUIET)
   FIND_PACKAGE(Qt5Gui REQUIRED)
   FIND_PACKAGE(Qt5Widgets REQUIRED)
@@ -300,7 +354,6 @@ IF(WITH_CORE)
   FIND_PACKAGE(Qt5Svg REQUIRED)
   FIND_PACKAGE(Qt5Concurrent REQUIRED)
   FIND_PACKAGE(Qt5PrintSupport REQUIRED)
-  FIND_PACKAGE(Qt5SerialPort REQUIRED)
   FIND_PACKAGE(Qt5Positioning)
   IF (WITH_QTWEBKIT)
     FIND_PACKAGE(Qt5WebKit REQUIRED)
@@ -317,6 +370,9 @@ IF(WITH_CORE)
     FIND_PACKAGE(Qt53DExtras REQUIRED)
     SET(HAVE_3D TRUE)  # used in qgsconfig.h
   ENDIF (WITH_3D)
+  IF (APPLE)
+    FIND_PACKAGE(Qt5MacExtras REQUIRED)
+  ENDIF (APPLE)
   INCLUDE("cmake/modules/ECMQt4To5Porting.cmake")
   MESSAGE(STATUS "Found Qt version: ${Qt5Core_VERSION_STRING}")
   IF (WITH_QUICK)
@@ -325,7 +381,7 @@ IF(WITH_CORE)
     IF(${CMAKE_SYSTEM_NAME} MATCHES "Android")
         FIND_PACKAGE(Qt5AndroidExtras)
     ELSE(${CMAKE_SYSTEM_NAME} MATCHES "Android")
-        FIND_PACKAGE(QtQmlTools REQUIRED)
+        FIND_PACKAGE(QtQmlTools)
     ENDIF(${CMAKE_SYSTEM_NAME} MATCHES "Android")
 
     # following variable is used in qgsconfig.h
@@ -371,12 +427,6 @@ IF(WITH_CORE)
   # Disable automatic conversion from QString to ASCII 8-bit strings (char *)
   # (Keeps code compatible with Qt/Mac/64bit)
   ADD_DEFINITIONS(-DQT_NO_CAST_TO_ASCII)
-
-  FIND_PROGRAM(QT_LRELEASE_EXECUTABLE
-    NAMES lrelease
-    PATHS ${QT_BINARY_DIR}
-    NO_DEFAULT_PATH
-  )
 ENDIF(WITH_CORE)
 
 # build our version of astyle
@@ -391,7 +441,6 @@ SET(QML_IMPORT_PATH "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}" CACHE PATH "QML director
 SET (ENABLE_TESTS TRUE CACHE BOOL "Build unit tests?")
 IF (ENABLE_TESTS)
 SET( QT_USE_QTTEST  TRUE )
-ADD_DEFINITIONS(-DENABLE_TESTS)
 ENABLE_TESTING()
 # Adds some testing specific build targets e.g. make Experimental
 INCLUDE(Dart)
@@ -431,6 +480,7 @@ IF (PEDANTIC)
     ENDIF (NOT USING_NMAKE AND NOT USING_NINJA)
 
     # disable warnings
+    SET(_warnings "${_warnings} /wd4091 ")  # 'typedef': ignored on left of '' when no variable is declared (occurs in MS DbgHelp.h header)
     SET(_warnings "${_warnings} /wd4100 ")  # unused formal parameters
     SET(_warnings "${_warnings} /wd4127 ")  # constant conditional expressions (used in Qt template classes)
     SET(_warnings "${_warnings} /wd4190 ")  # 'identifier' has C-linkage specified, but returns UDT 'identifier2' which is incompatible with C
@@ -438,6 +488,7 @@ IF (PEDANTIC)
     SET(_warnings "${_warnings} /wd4244 ")  # conversion from '...' to '...' possible loss of data
     SET(_warnings "${_warnings} /wd4251 ")  # needs to have dll-interface to be used by clients of class (occurs in Qt template classes)
     SET(_warnings "${_warnings} /wd4275 ")  # non dll-interface class '...' used as base for dll-interface class '...'
+    SET(_warnings "${_warnings} /wd4290 ")  # c++ exception specification ignored except to indicate a function is not __declspec(nothrow) (occurs in sip generated bindings)
     SET(_warnings "${_warnings} /wd4456 ")  # declaration of '...' hides previous local declaration
     SET(_warnings "${_warnings} /wd4457 ")  # declaration of '...' hides a function parameter
     SET(_warnings "${_warnings} /wd4458 ")  # declaration of '...' hides class member
@@ -453,6 +504,10 @@ IF (PEDANTIC)
   ELSE (MSVC)
     # add warnings via flags (not as definitions as on Mac -Wall can not be overridden per language )
     SET(_warnings "-Wall -Wextra -Wno-long-long -Wformat-security -Wno-strict-aliasing")
+    SET(WERROR FALSE CACHE BOOL "Treat build warnings as errors.")
+    IF (WERROR)
+      SET(_warnings "${_warnings} -Werror")
+    ENDIF(WERROR)
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${_warnings}")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${_warnings}")
 
@@ -461,7 +516,7 @@ IF (PEDANTIC)
     # ADD_DEFINITIONS( -fstrict-aliasing -Wstrict-aliasing=1 -Wredundant-decls )
 
     IF ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-      SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-return-type-c-linkage -Wno-overloaded-virtual")
+      SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-return-type-c-linkage -Wno-overloaded-virtual -Wimplicit-fallthrough")
     ENDIF ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
 
     # add any extra CXXFLAGS flags set by user. can be -D CXX_EXTRA_FLAGS or environment variable
@@ -900,6 +955,6 @@ IF (WITH_CORE)
   INCLUDE(CPack)
 ENDIF (WITH_CORE)
 
-IF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+IF (UNIX AND NOT APPLE)
   ADD_SUBDIRECTORY(linux)
-ENDIF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+ENDIF (UNIX AND NOT APPLE)

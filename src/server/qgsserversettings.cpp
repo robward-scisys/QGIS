@@ -21,8 +21,6 @@
 
 #include <QSettings>
 
-#include <iostream>
-
 QgsServerSettings::QgsServerSettings()
 {
   load();
@@ -86,6 +84,17 @@ void QgsServerSettings::initSettings()
                              QVariant()
                            };
   mSettings[ sLogFile.envVar ] = sLogFile;
+
+  // log to stderr
+  const Setting sLogStderr = { QgsServerSettingsEnv::QGIS_SERVER_LOG_STDERR,
+                               QgsServerSettingsEnv::DEFAULT_VALUE,
+                               "Activate/Deactivate logging to stderr",
+                               "",
+                               QVariant::Bool,
+                               QVariant( false ),
+                               QVariant()
+                             };
+  mSettings[ sLogStderr.envVar ] = sLogStderr;
 
   // project file
   const Setting sProject = { QgsServerSettingsEnv::QGIS_PROJECT_FILE,
@@ -279,6 +288,11 @@ int QgsServerSettings::maxThreads() const
 QString QgsServerSettings::logFile() const
 {
   return value( QgsServerSettingsEnv::QGIS_SERVER_LOG_FILE ).toString();
+}
+
+bool QgsServerSettings::logStderr() const
+{
+  return value( QgsServerSettingsEnv::QGIS_SERVER_LOG_STDERR ).toBool();
 }
 
 Qgis::MessageLevel QgsServerSettings::logLevel() const

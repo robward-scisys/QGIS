@@ -11,6 +11,7 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/src/core/auth
   ${CMAKE_SOURCE_DIR}/src/core/expression
   ${CMAKE_SOURCE_DIR}/src/core/geometry
+  ${CMAKE_SOURCE_DIR}/src/core/mesh
   ${CMAKE_SOURCE_DIR}/src/core/metadata
   ${CMAKE_SOURCE_DIR}/src/core/processing
   ${CMAKE_SOURCE_DIR}/src/core/processing/models
@@ -33,6 +34,10 @@ INCLUDE_DIRECTORIES(SYSTEM
   ${GEOS_INCLUDE_DIR}
   ${SQLITE3_INCLUDE_DIR}
 )
+
+IF(HAVE_OPENCL)
+    INCLUDE_DIRECTORIES(SYSTEM ${OpenCL_INCLUDE_DIRS})
+ENDIF(HAVE_OPENCL)
 
 #note for tests we should not include the moc of our
 #qtests in the executable file list as the moc is

@@ -118,6 +118,8 @@ class CORE_EXPORT QgsCircularString: public QgsCurve
     double vertexAngle( QgsVertexId vertex ) const override;
     double segmentLength( QgsVertexId startVertex ) const override;
     QgsCircularString *reversed() const override  SIP_FACTORY;
+    QgsPoint *interpolatePoint( double distance ) const override SIP_FACTORY;
+    QgsCircularString *curveSubstring( double startDistance, double endDistance ) const override SIP_FACTORY;
     bool addZValue( double zValue = 0 ) override;
     bool addMValue( double mValue = 0 ) override;
     bool dropZValue() override;
@@ -128,6 +130,7 @@ class CORE_EXPORT QgsCircularString: public QgsCurve
 
 #ifndef SIP_RUN
     void filterVertices( const std::function< bool( const QgsPoint & ) > &filter ) override;
+    void transformVertices( const std::function< QgsPoint( const QgsPoint & ) > &transform ) override;
 
     /**
      * Cast the \a geom to a QgsCircularString.
@@ -149,8 +152,11 @@ class CORE_EXPORT QgsCircularString: public QgsCurve
 #ifdef SIP_RUN
     SIP_PYOBJECT __repr__();
     % MethodCode
-    QString str = QStringLiteral( "<QgsCircularString: %1>" ).arg( sipCpp->asWkt() );
-    sipRes = PyUnicode_FromString( str.toUtf8().data() );
+    QString wkt = sipCpp->asWkt();
+    if ( wkt.length() > 1000 )
+      wkt = wkt.left( 1000 ) + QStringLiteral( "..." );
+    QString str = QStringLiteral( "<QgsCircularString: %1>" ).arg( wkt );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
     % End
 #endif
 

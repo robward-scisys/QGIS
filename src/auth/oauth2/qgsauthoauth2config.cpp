@@ -11,6 +11,7 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
+#include <functional>
 
 #include "qgsauthoauth2config.h"
 
@@ -44,7 +45,6 @@ QgsAuthOAuth2Config::QgsAuthOAuth2Config( QObject *parent )
   connect( this, &QgsAuthOAuth2Config::usernameChanged, this, &QgsAuthOAuth2Config::configChanged );
   connect( this, &QgsAuthOAuth2Config::passwordChanged, this, &QgsAuthOAuth2Config::configChanged );
   connect( this, &QgsAuthOAuth2Config::scopeChanged, this, &QgsAuthOAuth2Config::configChanged );
-  connect( this, &QgsAuthOAuth2Config::stateChanged, this, &QgsAuthOAuth2Config::configChanged );
   connect( this, &QgsAuthOAuth2Config::apiKeyChanged, this, &QgsAuthOAuth2Config::configChanged );
   connect( this, &QgsAuthOAuth2Config::persistTokenChanged, this, &QgsAuthOAuth2Config::configChanged );
   connect( this, &QgsAuthOAuth2Config::accessMethodChanged, this, &QgsAuthOAuth2Config::configChanged );
@@ -187,14 +187,6 @@ void QgsAuthOAuth2Config::setScope( const QString &value )
     emit scopeChanged( mScope );
 }
 
-void QgsAuthOAuth2Config::setState( const QString &value )
-{
-  QString preval( mState );
-  mState = value;
-  if ( preval != value )
-    emit stateChanged( mState );
-}
-
 void QgsAuthOAuth2Config::setApiKey( const QString &value )
 {
   QString preval( mApiKey );
@@ -253,7 +245,6 @@ void QgsAuthOAuth2Config::setToDefaults()
   setUsername( QString() );
   setPassword( QString() );
   setScope( QString() );
-  setState( QString() );
   setApiKey( QString() );
   setPersistToken( false );
   setAccessMethod( QgsAuthOAuth2Config::Header );
@@ -278,7 +269,6 @@ bool QgsAuthOAuth2Config::operator==( const QgsAuthOAuth2Config &other ) const
            && other.username() == this->username()
            && other.password() == this->password()
            && other.scope() == this->scope()
-           && other.state() == this->state()
            && other.apiKey() == this->apiKey()
            && other.persistToken() == this->persistToken()
            && other.accessMethod() == this->accessMethod()
@@ -344,7 +334,16 @@ bool QgsAuthOAuth2Config::loadConfigTxt(
         QgsDebugMsg( QStringLiteral( "Error parsing JSON: %1" ).arg( QString( errStr ) ) );
         return res;
       }
-      QJsonWrapper::qvariant2qobject( variant.toMap(), this );
+      const QVariantMap variantMap = variant.toMap();
+      // safety check -- qvariant2qobject asserts if an non-matching property is found in the json
+      for ( QVariantMap::const_iterator iter = variantMap.constBegin(); iter != variantMap.constEnd(); ++iter )
+      {
+        QVariant property = this->property( iter.key().toLatin1() );
+        if ( !property.isValid() ) // e.g. not a auth config json file
+          return false;
+      }
+
+      QJsonWrapper::qvariant2qobject( variantMap, this );
       break;
     }
     default:
@@ -410,7 +409,6 @@ QVariantMap QgsAuthOAuth2Config::mappedProperties() const
   vmap.insert( QStringLiteral( "requestTimeout" ), this->requestTimeout() );
   vmap.insert( QStringLiteral( "requestUrl" ), this->requestUrl() );
   vmap.insert( QStringLiteral( "scope" ), this->scope() );
-  vmap.insert( QStringLiteral( "state" ), this->state() );
   vmap.insert( QStringLiteral( "tokenUrl" ), this->tokenUrl() );
   vmap.insert( QStringLiteral( "username" ), this->username() );
   vmap.insert( QStringLiteral( "version" ), this->version() );
@@ -702,24 +700,29 @@ QgsStringMap QgsAuthOAuth2Config::mapOAuth2Configs(
   return configs;
 }
 
+QStringList QgsAuthOAuth2Config::configLocations( const QString &extradir )
+{
+  QStringList dirs;
+  // in order of override preference, i.e. user over pkg dir
+  dirs << QgsAuthOAuth2Config::oauth2ConfigsPkgDataDir()
+       << QgsAuthOAuth2Config::oauth2ConfigsUserSettingsDir();
+
+  if ( !extradir.isEmpty() )
+  {
+    // configs of similar IDs in this dir will override existing in standard dirs
+    dirs << extradir;
+  }
+  return dirs;
+}
+
 QgsStringMap QgsAuthOAuth2Config::mappedOAuth2ConfigsCache( QObject *parent, const QString &extradir )
 {
   QgsStringMap configs;
   bool ok = false;
 
   // Load from default locations
-  QStringList configdirs;
-  // in order of override preference, i.e. user over pkg dir
-  configdirs << QgsAuthOAuth2Config::oauth2ConfigsPkgDataDir()
-             << QgsAuthOAuth2Config::oauth2ConfigsUserSettingsDir();
-
-  if ( !extradir.isEmpty() )
-  {
-    // configs of similar IDs in this dir will override existing in standard dirs
-    configdirs << extradir;
-  }
-
-  for ( const auto &configdir : qgis::as_const( configdirs ) )
+  const QStringList configdirs = configLocations( extradir );
+  for ( const auto &configdir : configdirs )
   {
     QFileInfo configdirinfo( configdir );
     if ( !configdirinfo.exists() || !configdirinfo.isDir() )
@@ -750,7 +753,7 @@ QString QgsAuthOAuth2Config::oauth2ConfigsPkgDataDir()
 // static
 QString QgsAuthOAuth2Config::oauth2ConfigsUserSettingsDir()
 {
-  return QgsApplication::qgisSettingsDirPath() + QStringLiteral( "/oauth2_configs" );
+  return QgsApplication::qgisSettingsDirPath() + QStringLiteral( "oauth2_configs" );
 }
 
 // static

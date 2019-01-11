@@ -157,10 +157,10 @@ class GdalUtils:
                 if extensions:
                     GdalUtils.supportedRasters[shortName] = extensions
                     # Only creatable rasters can be referenced in output rasters
-                    if ((gdal.DCAP_CREATE in metadata
-                         and metadata[gdal.DCAP_CREATE] == 'YES')
-                        or (gdal.DCAP_CREATECOPY in metadata
-                            and metadata[gdal.DCAP_CREATECOPY] == 'YES')):
+                    if ((gdal.DCAP_CREATE in metadata and
+                         metadata[gdal.DCAP_CREATE] == 'YES') or
+                        (gdal.DCAP_CREATECOPY in metadata and
+                            metadata[gdal.DCAP_CREATECOPY] == 'YES')):
                         GdalUtils.supportedOutputRasters[shortName] = extensions
 
         return GdalUtils.supportedRasters
@@ -241,28 +241,10 @@ class GdalUtils:
         return gdal.VersionInfo('RELEASE_NAME')
 
     @staticmethod
-    def gdalHelpPath():
-        helpPath = ProcessingConfig.getSetting(GdalUtils.GDAL_HELP_PATH)
-
-        if helpPath is None:
-            if isWindows():
-                pass
-            elif isMac():
-                pass
-            else:
-                searchPaths = ['/usr/share/doc/libgdal-doc/gdal']
-                for path in searchPaths:
-                    if os.path.exists(path):
-                        helpPath = os.path.abspath(path)
-                        break
-
-        return helpPath if helpPath is not None else 'http://www.gdal.org/'
-
-    @staticmethod
-    def ogrConnectionString(uri, context):
-        """Generates OGR connection string from layer source
+    def ogrConnectionStringFromLayer(layer):
+        """Generates OGR connection string from a layer
         """
-        return GdalUtils.ogrConnectionStringAndFormat(uri, context)[0]
+        return GdalUtils.ogrConnectionStringAndFormatFromLayer(layer)[0]
 
     @staticmethod
     def ogrConnectionStringAndFormat(uri, context):
@@ -278,6 +260,10 @@ class GdalUtils:
             format = QgsVectorFileWriter.driverForExtension(ext)
             return uri, '"' + format + '"'
 
+        return GdalUtils.ogrConnectionStringAndFormatFromLayer(layer)
+
+    @staticmethod
+    def ogrConnectionStringAndFormatFromLayer(layer):
         provider = layer.dataProvider().name()
         if provider == 'spatialite':
             # dbname='/geodata/osm_ch.sqlite' table="places" (Geometry) sql=
@@ -313,6 +299,22 @@ class GdalUtils:
 
             ogrstr = "PG:%s" % dsUri.connectionInfo()
             format = 'PostgreSQL'
+        elif provider == 'mssql':
+            #'dbname=\'db_name\' host=myHost estimatedmetadata=true
+            # srid=27700 type=MultiPolygon table="dbo"."my_table"
+            # #(Shape) sql='
+            dsUri = layer.dataProvider().uri()
+            ogrstr = 'MSSQL:'
+            ogrstr += 'database={0};'.format(dsUri.database())
+            ogrstr += 'server={0};'.format(dsUri.host())
+            if dsUri.username() != "":
+                ogrstr += 'uid={0};'.format(dsUri.username())
+            else:
+                ogrstr += 'trusted_connection=yes;'
+            if dsUri.password() != '':
+                ogrstr += 'pwd={0};'.format(dsUri.password())
+            ogrstr += 'tables={0}'.format(dsUri.table())
+            format = 'MSSQL'
         elif provider == "oracle":
             # OCI:user/password@host:port/service:table
             dsUri = QgsDataSourceUri(layer.dataProvider().dataSourceUri())
@@ -427,5 +429,5 @@ class GdalUtils:
         if crs.authid().upper().startswith('EPSG:'):
             return crs.authid()
 
-        # fallback to proj4 string
-        return crs.toProj4()
+        # fallback to proj4 string, stripping out newline characters
+        return crs.toProj4().replace('\n', ' ').replace('\r', ' ')

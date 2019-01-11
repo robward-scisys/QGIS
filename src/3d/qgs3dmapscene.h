@@ -24,6 +24,7 @@ namespace Qt3DRender
 {
   class QRenderSettings;
   class QCamera;
+  class QPickEvent;
 }
 
 namespace Qt3DLogic
@@ -39,6 +40,7 @@ namespace Qt3DExtras
 class QgsAbstract3DEngine;
 class QgsMapLayer;
 class QgsCameraController;
+class Qgs3DMapScenePickHandler;
 class Qgs3DMapSettings;
 class QgsTerrainEntity;
 class QgsChunkedEntity;
@@ -76,6 +78,17 @@ class _3D_EXPORT Qgs3DMapScene : public Qt3DCore::QEntity
     //! Returns the current state of the scene
     SceneState sceneState() const { return mSceneState; }
 
+    //! Registers an object that will get results of pick events on 3D entities. Does not take ownership of the pick handler. Adds object picker components to 3D entities.
+    void registerPickHandler( Qgs3DMapScenePickHandler *pickHandler );
+    //! Unregisters previously registered pick handler. Pick handler is not deleted. Also removes object picker components from 3D entities.
+    void unregisterPickHandler( Qgs3DMapScenePickHandler *pickHandler );
+
+    /**
+     * Given screen error (in pixels) and distance from camera (in 3D world coordinates), this function
+     * estimates the error in world space. Takes into account camera's field of view and the screen (3D view) size.
+     */
+    float worldSpaceError( float epsilon, float distance );
+
   signals:
     //! Emitted when the current terrain entity is replaced by a new one
     void terrainEntityChanged();
@@ -92,6 +105,8 @@ class _3D_EXPORT Qgs3DMapScene : public Qt3DCore::QEntity
     void onLayersChanged();
     void createTerrainDeferred();
     void onBackgroundColorChanged();
+    void onLayerEntityPickEvent( Qt3DRender::QPickEvent *event );
+    void updateLights();
 
   private:
     void addLayerEntity( QgsMapLayer *layer );
@@ -99,6 +114,8 @@ class _3D_EXPORT Qgs3DMapScene : public Qt3DCore::QEntity
     void addCameraViewCenterEntity( Qt3DRender::QCamera *camera );
     void setSceneState( SceneState state );
     void updateSceneState();
+    void updateScene();
+    bool updateCameraNearFarPlanes();
 
   private:
     const Qgs3DMapSettings &mMap;
@@ -114,6 +131,10 @@ class _3D_EXPORT Qgs3DMapScene : public Qt3DCore::QEntity
     QMap<QgsMapLayer *, Qt3DCore::QEntity *> mLayerEntities;
     bool mTerrainUpdateScheduled = false;
     SceneState mSceneState = Ready;
+    //! List of currently registered pick handlers (used by identify tool)
+    QList<Qgs3DMapScenePickHandler *> mPickHandlers;
+    //! List of lights in the scene
+    QList<Qt3DCore::QEntity *> mLightEntities;
 };
 
 #endif // QGS3DMAPSCENE_H

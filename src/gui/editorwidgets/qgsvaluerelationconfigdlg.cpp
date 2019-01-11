@@ -68,7 +68,7 @@ QVariantMap QgsValueRelationConfigDlg::config()
 
 void QgsValueRelationConfigDlg::setConfig( const QVariantMap &config )
 {
-  QgsVectorLayer *lyr = qobject_cast<QgsVectorLayer *>( QgsProject::instance()->mapLayer( config.value( QStringLiteral( "Layer" ) ).toString() ) );
+  QgsVectorLayer *lyr = QgsProject::instance()->mapLayer<QgsVectorLayer *>( config.value( QStringLiteral( "Layer" ) ).toString() );
   mLayerName->setLayer( lyr );
   mKeyColumn->setField( config.value( QStringLiteral( "Key" ) ).toString() );
   mValueColumn->setField( config.value( QStringLiteral( "Value" ) ).toString() );
@@ -93,6 +93,11 @@ void QgsValueRelationConfigDlg::editExpression()
 
   QgsExpressionContext context( QgsExpressionContextUtils::globalProjectLayerScopes( vl ) );
   context << QgsExpressionContextUtils::formScope( );
+
+  context.setHighlightedFunctions( QStringList() << QStringLiteral( "current_value" ) );
+  context.setHighlightedVariables( QStringList() << QStringLiteral( "current_geometry" )
+                                   << QStringLiteral( "current_feature" )
+                                   << QStringLiteral( "form_mode" ) );
 
   QgsExpressionBuilderDialog dlg( vl, mFilterExpression->toPlainText(), this, QStringLiteral( "generic" ), context );
   dlg.setWindowTitle( tr( "Edit Filter Expression" ) );

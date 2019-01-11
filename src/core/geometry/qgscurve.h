@@ -15,8 +15,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef QGSCURVEV2_H
-#define QGSCURVEV2_H
+#ifndef QGSCURVE_H
+#define QGSCURVE_H
 
 #include "qgis_core.h"
 #include "qgis.h"
@@ -106,6 +106,22 @@ class CORE_EXPORT QgsCurve: public QgsAbstractGeometry
      */
     virtual int numPoints() const = 0;
 
+#ifdef SIP_RUN
+    int __len__() const;
+    % Docstring
+    Returns the number of points in the curve.
+    % End
+    % MethodCode
+    sipRes = sipCpp->numPoints();
+    % End
+
+    //! Ensures that bool(obj) returns true (otherwise __len__() would be used)
+    int __bool__() const;
+    % MethodCode
+    sipRes = true;
+    % End
+#endif
+
     /**
      * Sums up the area of the curve by iterating over the vertices (shoelace formula).
      */
@@ -167,6 +183,33 @@ class CORE_EXPORT QgsCurve: public QgsAbstractGeometry
     virtual QPolygonF asQPolygonF() const;
 
     /**
+     * Returns an interpolated point on the curve at the specified \a distance.
+     *
+     * If z or m values are present, the output z and m will be interpolated using
+     * the existing vertices' z or m values.
+     *
+     * If distance is negative, or is greater than the length of the curve, a nullptr
+     * will be returned.
+     *
+     * \since QGIS 3.4
+     */
+    virtual QgsPoint *interpolatePoint( double distance ) const = 0 SIP_FACTORY;
+
+    /**
+     * Returns a new curve representing a substring of this curve.
+     *
+     * The \a startDistance and \a endDistance arguments specify the length along the curve
+     * which the substring should start and end at. If the \a endDistance is greater than the
+     * total length of the curve then any "extra" length will be ignored.
+     *
+     * If z or m values are present, the output z and m will be interpolated using
+     * the existing vertices' z or m values.
+     *
+     * \since QGIS 3.4
+     */
+    virtual QgsCurve *curveSubstring( double startDistance, double endDistance ) const = 0 SIP_FACTORY;
+
+    /**
      * Returns the straight distance of the curve, i.e. the direct/euclidean distance
      * between the first and last vertex of the curve. (Also known as
      * "as the crow flies" distance).
@@ -185,6 +228,22 @@ class CORE_EXPORT QgsCurve: public QgsAbstractGeometry
      * \since QGIS 3.2
      */
     double sinuosity() const;
+
+    //! Curve orientation
+    enum Orientation
+    {
+      Clockwise, //!< Clockwise orientation
+      CounterClockwise, //!< Counter-clockwise orientation
+    };
+
+    /**
+     * Returns the curve's orientation, e.g. clockwise or counter-clockwise.
+     *
+     * \warning The result is not predictable for non-closed curves.
+     *
+     * \since QGIS 3.6
+     */
+    Orientation orientation() const;
 
 #ifndef SIP_RUN
 
@@ -233,4 +292,4 @@ class CORE_EXPORT QgsCurve: public QgsAbstractGeometry
     mutable QgsRectangle mBoundingBox;
 };
 
-#endif // QGSCURVEV2_H
+#endif // QGSCURVE_H

@@ -56,7 +56,7 @@ class GUI_EXPORT QgsSymbolLayerWidget : public QWidget, protected QgsExpressionC
      * \see context()
      * \since QGIS 3.0
      */
-    void setContext( const QgsSymbolWidgetContext &context );
+    virtual void setContext( const QgsSymbolWidgetContext &context );
 
     /**
      * Returns the context in which the symbol widget is shown, e.g., the associated map canvas and expression contexts.
@@ -535,6 +535,8 @@ class GUI_EXPORT QgsSvgMarkerSymbolLayerWidget : public QgsSymbolLayerWidget, pr
     void setSymbolLayer( QgsSymbolLayer *layer ) override;
     QgsSymbolLayer *symbolLayer() override;
 
+    void setContext( const QgsSymbolWidgetContext &context ) override;
+
   protected:
 
     void populateList();
@@ -546,9 +548,7 @@ class GUI_EXPORT QgsSvgMarkerSymbolLayerWidget : public QgsSymbolLayerWidget, pr
   private slots:
     void setName( const QModelIndex &idx );
     void populateIcons( const QModelIndex &idx );
-    void mFileToolButton_clicked();
-    void mFileLineEdit_textEdited( const QString &text );
-    void mFileLineEdit_editingFinished();
+    void svgSourceChanged( const QString &text );
     void mChangeColorButton_colorChanged( const QColor &color );
     void mChangeStrokeColorButton_colorChanged( const QColor &color );
     void mStrokeWidthSpinBox_valueChanged( double d );
@@ -568,6 +568,62 @@ class GUI_EXPORT QgsSvgMarkerSymbolLayerWidget : public QgsSymbolLayerWidget, pr
 
     std::shared_ptr< QgsMarkerSymbol > mAssistantPreviewSymbol;
     int mIconSize = 30;
+
+};
+
+///////////
+
+#include "ui_widget_rastermarker.h"
+
+class QgsRasterMarkerSymbolLayer;
+
+/**
+ * \ingroup gui
+ * \class QgsRasterMarkerSymbolLayerWidget
+ * \brief Widget for configuring QgsRasterMarkerSymbolLayer symbol layers.
+ * \since QGIS 3.6
+ */
+class GUI_EXPORT QgsRasterMarkerSymbolLayerWidget : public QgsSymbolLayerWidget, private Ui::WidgetRasterMarker
+{
+    Q_OBJECT
+
+  public:
+
+    /**
+     * Constructor for QgsRasterMarkerSymbolLayerWidget.
+     * \param vl associated vector layer
+     * \param parent parent widget
+     */
+    QgsRasterMarkerSymbolLayerWidget( QgsVectorLayer *vl, QWidget *parent SIP_TRANSFERTHIS = nullptr );
+
+    /**
+     * Creates a new QgsRasterMarkerSymbolLayerWidget.
+     * \param vl associated vector layer
+     */
+    static QgsSymbolLayerWidget *create( QgsVectorLayer *vl ) SIP_FACTORY { return new QgsRasterMarkerSymbolLayerWidget( vl ); }
+
+    // from base class
+    void setSymbolLayer( QgsSymbolLayer *layer ) override;
+    QgsSymbolLayer *symbolLayer() override;
+    void setContext( const QgsSymbolWidgetContext &context ) override;
+
+  protected:
+
+    QgsRasterMarkerSymbolLayer *mLayer = nullptr;
+
+  private slots:
+    void imageSourceChanged( const QString &text );
+    void mSizeUnitWidget_changed();
+    void mOffsetUnitWidget_changed();
+    void mHorizontalAnchorComboBox_currentIndexChanged( int index );
+    void mVerticalAnchorComboBox_currentIndexChanged( int index );
+    void setWidth();
+    void setHeight();
+    void setLockAspectRatio( bool locked );
+    void setAngle();
+    void setOffset();
+    void setOpacity( double value );
+    void updatePreviewImage();
 
 };
 
@@ -608,8 +664,7 @@ class GUI_EXPORT QgsRasterFillSymbolLayerWidget : public QgsSymbolLayerWidget, p
     QgsRasterFillSymbolLayer *mLayer = nullptr;
 
   private slots:
-    void mBrowseToolButton_clicked();
-    void mImageLineEdit_editingFinished();
+    void imageSourceChanged( const QString &text );
     void setCoordinateMode( int index );
     void opacityChanged( double value );
     void offsetChanged();
@@ -654,6 +709,7 @@ class GUI_EXPORT QgsSVGFillSymbolLayerWidget : public QgsSymbolLayerWidget, priv
     // from base class
     void setSymbolLayer( QgsSymbolLayer *layer ) override;
     QgsSymbolLayer *symbolLayer() override;
+    void setContext( const QgsSymbolWidgetContext &context ) override;
 
   protected:
     QgsSVGFillSymbolLayer *mLayer = nullptr;
@@ -668,10 +724,8 @@ class GUI_EXPORT QgsSVGFillSymbolLayerWidget : public QgsSymbolLayerWidget, priv
     void updateParamGui( bool resetValues = true );
 
   private slots:
-    void mBrowseToolButton_clicked();
     void mTextureWidthSpinBox_valueChanged( double d );
-    void mSVGLineEdit_textEdited( const QString &text );
-    void mSVGLineEdit_editingFinished();
+    void svgSourceChanged( const QString &text );
     void setFile( const QModelIndex &item );
     void populateIcons( const QModelIndex &item );
     void mRotationSpinBox_valueChanged( double d );

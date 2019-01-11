@@ -2,7 +2,7 @@
                               qgswmsutils.cpp
                               -------------------------
   begin                : December 20 , 2016
-  copyright            : (C) 2007 by Marco Hugentobler  ( parts fron qgswmshandler)
+  copyright            : (C) 2007 by Marco Hugentobler  ( parts from qgswmshandler)
                          (C) 2014 by Alessandro Pasotti ( parts from qgswmshandler)
                          (C) 2016 by David Marteau
   email                : marco dot hugentobler at karto dot baug dot ethz dot ch
@@ -19,11 +19,13 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <QRegularExpression>
+
 #include "qgsmodule.h"
 #include "qgswmsutils.h"
 #include "qgsmediancut.h"
-#include "qgsconfigcache.h"
 #include "qgsserverprojectutils.h"
+#include "qgswmsserviceexception.h"
 
 namespace QgsWms
 {
@@ -43,15 +45,25 @@ namespace QgsWms
     // Build default url
     if ( href.isEmpty() )
     {
+      static QSet<QString> sFilter
+      {
+        QStringLiteral( "REQUEST" ),
+        QStringLiteral( "VERSION" ),
+        QStringLiteral( "SERVICE" ),
+        QStringLiteral( "LAYERS" ),
+        QStringLiteral( "STYLES" ),
+        QStringLiteral( "SLD_VERSION" ),
+        QStringLiteral( "_DC" )
+      };
+
       href = request.url();
       QUrlQuery q( href );
 
-      q.removeAllQueryItems( QStringLiteral( "REQUEST" ) );
-      q.removeAllQueryItems( QStringLiteral( "VERSION" ) );
-      q.removeAllQueryItems( QStringLiteral( "SERVICE" ) );
-      q.removeAllQueryItems( QStringLiteral( "LAYERS" ) );
-      q.removeAllQueryItems( QStringLiteral( "SLD_VERSION" ) );
-      q.removeAllQueryItems( QStringLiteral( "_DC" ) );
+      for ( auto param : q.queryItems() )
+      {
+        if ( sFilter.contains( param.first.toUpper() ) )
+          q.removeAllQueryItems( param.first );
+      }
 
       href.setQuery( q );
     }

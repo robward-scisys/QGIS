@@ -62,6 +62,7 @@ class ColorRelief(GdalAlgorithm):
                                                             self.tr('Input layer')))
         self.addParameter(QgsProcessingParameterBand(self.BAND,
                                                      self.tr('Band number'),
+                                                     1,
                                                      parentLayerParameterName=self.INPUT))
         self.addParameter(QgsProcessingParameterBoolean(self.COMPUTE_EDGES,
                                                         self.tr('Compute edges'),
@@ -73,7 +74,7 @@ class ColorRelief(GdalAlgorithm):
                                                      options=[i[0] for i in self.modes],
                                                      defaultValue=2))
         options_param = QgsProcessingParameterString(self.OPTIONS,
-                                                     self.tr('Additional creation parameters'),
+                                                     self.tr('Additional creation options'),
                                                      defaultValue='',
                                                      optional=True)
 

@@ -247,14 +247,11 @@ void QgsAttributeTableFilterModel::setSelectedOnTop( bool selectedOnTop )
     Qt::SortOrder order = sortOrder();
 
     // set default sort values if they are not correctly set
-    if ( column < 0 )
-      column = 0;
-
-    if ( order != Qt::AscendingOrder && order != Qt::DescendingOrder )
-      order = Qt::AscendingOrder;
-
-    sort( column, order );
-    invalidate();
+    if ( column < 0 || ( order != Qt::AscendingOrder && order != Qt::DescendingOrder ) )
+    {
+      sort( 0, Qt::AscendingOrder );
+      invalidate();
+    }
   }
 }
 
@@ -382,7 +379,6 @@ void QgsAttributeTableFilterModel::selectionChanged()
   }
   else if ( mSelectedOnTop )
   {
-    sort( sortColumn(), sortOrder() );
     invalidate();
   }
 }
@@ -402,6 +398,14 @@ int QgsAttributeTableFilterModel::mapColumnToSource( int column ) const
     return mColumnMapping.at( column );
 }
 
+int QgsAttributeTableFilterModel::mapColumnFromSource( int column ) const
+{
+  if ( mColumnMapping.isEmpty() )
+    return column;
+  else
+    return mColumnMapping.indexOf( column );
+}
+
 void QgsAttributeTableFilterModel::generateListOfVisibleFeatures()
 {
   if ( !layer() )
@@ -415,7 +419,7 @@ void QgsAttributeTableFilterModel::generateListOfVisibleFeatures()
   mFilteredFeatures.clear();
   if ( !layer()->renderer() )
   {
-    QgsDebugMsg( "Cannot get renderer" );
+    QgsDebugMsg( QStringLiteral( "Cannot get renderer" ) );
     return;
   }
 
@@ -424,7 +428,7 @@ void QgsAttributeTableFilterModel::generateListOfVisibleFeatures()
   const QgsMapSettings &ms = mCanvas->mapSettings();
   if ( !layer()->isInScaleRange( ms.scale() ) )
   {
-    QgsDebugMsg( "Out of scale limits" );
+    QgsDebugMsg( QStringLiteral( "Out of scale limits" ) );
   }
   else
   {
@@ -528,7 +532,8 @@ QModelIndex QgsAttributeTableFilterModel::mapFromSource( const QModelIndex &sour
   if ( proxyIndex.column() < 0 )
     return QModelIndex();
 
-  int col = mapColumnToSource( proxyIndex.column() );
+  int col = mapColumnFromSource( proxyIndex.column() );
+
   if ( col == -1 )
     col = 0;
 
@@ -544,4 +549,3 @@ Qt::ItemFlags QgsAttributeTableFilterModel::flags( const QModelIndex &index ) co
   QModelIndex source_index = mapToSource( index );
   return masterModel()->flags( source_index );
 }
-

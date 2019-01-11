@@ -391,12 +391,27 @@ QgsLineSymbolLayer::QgsLineSymbolLayer( bool locked )
 {
 }
 
+QgsLineSymbolLayer::RenderRingFilter QgsLineSymbolLayer::ringFilter() const
+{
+  return mRingFilter;
+}
+
+void QgsLineSymbolLayer::setRingFilter( const RenderRingFilter filter )
+{
+  mRingFilter = filter;
+}
+
 QgsFillSymbolLayer::QgsFillSymbolLayer( bool locked )
   : QgsSymbolLayer( QgsSymbol::Fill, locked )
 {
 }
 
 void QgsMarkerSymbolLayer::startRender( QgsSymbolRenderContext &context )
+{
+  Q_UNUSED( context );
+}
+
+void QgsMarkerSymbolLayer::stopRender( QgsSymbolRenderContext &context )
 {
   Q_UNUSED( context );
 }
@@ -609,11 +624,30 @@ void QgsLineSymbolLayer::drawPreviewIcon( QgsSymbolRenderContext &context, QSize
 
 void QgsLineSymbolLayer::renderPolygonStroke( const QPolygonF &points, QList<QPolygonF> *rings, QgsSymbolRenderContext &context )
 {
-  renderPolyline( points, context );
+  switch ( mRingFilter )
+  {
+    case AllRings:
+    case ExteriorRingOnly:
+      renderPolyline( points, context );
+      break;
+    case InteriorRingsOnly:
+      break;
+  }
+
   if ( rings )
   {
-    Q_FOREACH ( const QPolygonF &ring, *rings )
-      renderPolyline( ring, context );
+    switch ( mRingFilter )
+    {
+      case AllRings:
+      case InteriorRingsOnly:
+      {
+        for ( const QPolygonF &ring : qgis::as_const( *rings ) )
+          renderPolyline( ring, context );
+      }
+      break;
+      case ExteriorRingOnly:
+        break;
+    }
   }
 }
 
@@ -690,12 +724,12 @@ void QgsFillSymbolLayer::_renderPolygon( QPainter *p, const QPolygonF &points, c
 void QgsMarkerSymbolLayer::toSld( QDomDocument &doc, QDomElement &element, const QgsStringMap &props ) const
 {
   QDomElement symbolizerElem = doc.createElement( QStringLiteral( "se:PointSymbolizer" ) );
-  if ( !props.value( QStringLiteral( "uom" ), QLatin1String( "" ) ).isEmpty() )
-    symbolizerElem.setAttribute( QStringLiteral( "uom" ), props.value( QStringLiteral( "uom" ), QLatin1String( "" ) ) );
+  if ( !props.value( QStringLiteral( "uom" ), QString() ).isEmpty() )
+    symbolizerElem.setAttribute( QStringLiteral( "uom" ), props.value( QStringLiteral( "uom" ), QString() ) );
   element.appendChild( symbolizerElem );
 
   // <Geometry>
-  QgsSymbolLayerUtils::createGeometryElement( doc, symbolizerElem, props.value( QStringLiteral( "geom" ), QLatin1String( "" ) ) );
+  QgsSymbolLayerUtils::createGeometryElement( doc, symbolizerElem, props.value( QStringLiteral( "geom" ), QString() ) );
 
   writeSldMarker( doc, symbolizerElem, props );
 }

@@ -21,7 +21,6 @@
 
 #include "gmath.h"
 #include "info.h"
-#include "qgsmapcanvas.h"
 #include "qgsgpsmarker.h"
 #include "qgsmaptoolcapture.h"
 #include <qwt_plot_curve.h>
@@ -35,6 +34,7 @@ class QextSerialPort;
 class QgsGpsConnection;
 class QgsGpsTrackerThread;
 struct QgsGpsInformation;
+class QgsMapCanvas;
 
 class QFile;
 class QColor;
@@ -109,7 +109,7 @@ class QgsGpsInformationWidget: public QWidget, private Ui::QgsGpsInformationWidg
     QList<QgsPointXY> mCaptureList;
     FixStatus mLastFixStatus;
     QString mDateTimeFormat; // user specified format string in registry (no UI presented)
-    QgsVectorLayer *mpLastLayer = nullptr;
+    QPointer< QgsVectorLayer > mpLastLayer;
     QFile *mLogFile = nullptr;
     QTextStream mLogFileTextStream;
     QIntValidator *mAcquisitionIntValidator = nullptr;

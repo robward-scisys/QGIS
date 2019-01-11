@@ -403,7 +403,7 @@ bool QgsDelimitedTextSourceSelect::loadDelimitedFileDefinition()
 void QgsDelimitedTextSourceSelect::updateFieldLists()
 {
   // Update the x and y field drop-down boxes
-  QgsDebugMsg( "Updating field lists" );
+  QgsDebugMsg( QStringLiteral( "Updating field lists" ) );
 
   disconnect( cmbXField, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsDelimitedTextSourceSelect::enableAccept );
   disconnect( cmbYField, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsDelimitedTextSourceSelect::enableAccept );
@@ -470,7 +470,7 @@ void QgsDelimitedTextSourceSelect::updateFieldLists()
 
     for ( int i = 0; i < tblSample->columnCount(); i++ )
     {
-      QString value = i < nv ? values[i] : QLatin1String( "" );
+      QString value = i < nv ? values[i] : QString();
       if ( value.length() > MAX_SAMPLE_LENGTH )
         value = value.mid( 0, MAX_SAMPLE_LENGTH ) + QChar( 0x2026 );
       QTableWidgetItem *item = new QTableWidgetItem( value );
@@ -677,7 +677,7 @@ bool QgsDelimitedTextSourceSelect::validate()
 {
   // Check that input data is valid - provide a status message if not..
 
-  QString message( QLatin1String( "" ) );
+  QString message;
   bool enabled = false;
 
   if ( mFileWidget->filePath().trimmed().isEmpty() )

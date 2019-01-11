@@ -203,12 +203,13 @@ void QgsSymbolLegendNode::setSymbol( QgsSymbol *symbol )
   if ( !symbol )
     return;
 
+  std::unique_ptr< QgsSymbol > s( symbol ); // this method takes ownership of symbol
   QgsVectorLayer *vlayer = qobject_cast<QgsVectorLayer *>( mLayerNode->layer() );
   if ( !vlayer || !vlayer->renderer() )
     return;
 
-  mItem.setSymbol( symbol );
-  vlayer->renderer()->setLegendSymbolItem( mItem.ruleKey(), symbol );
+  mItem.setSymbol( s.get() ); // doesn't transfer ownership
+  vlayer->renderer()->setLegendSymbolItem( mItem.ruleKey(), s.release() ); // DOES transfer ownership!
 
   mPixmap = QPixmap();
 
@@ -226,6 +227,22 @@ void QgsSymbolLegendNode::uncheckAllItems()
   checkAll( false );
 }
 
+void QgsSymbolLegendNode::toggleAllItems()
+{
+  QgsVectorLayer *vlayer = qobject_cast<QgsVectorLayer *>( mLayerNode->layer() );
+  if ( !vlayer || !vlayer->renderer() )
+    return;
+
+  const QgsLegendSymbolList symbolList = vlayer->renderer()->legendSymbolItems();
+  for ( const auto &item : symbolList )
+  {
+    vlayer->renderer()->checkLegendSymbolItem( item.ruleKey(), ! vlayer->renderer()->legendSymbolItemChecked( item.ruleKey() ) );
+  }
+
+  emit dataChanged();
+  vlayer->triggerRepaint();
+}
+
 QgsRenderContext *QgsLayerTreeModelLegendNode::createTemporaryRenderContext() const
 {
   double scale = 0.0;
@@ -238,7 +255,7 @@ QgsRenderContext *QgsLayerTreeModelLegendNode::createTemporaryRenderContext() co
     return nullptr;
 
   // setup temporary render context
-  std::unique_ptr<QgsRenderContext> context( new QgsRenderContext );
+  std::unique_ptr<QgsRenderContext> context = qgis::make_unique<QgsRenderContext>( );
   context->setScaleFactor( dpi / 25.4 );
   context->setRendererScale( scale );
   context->setMapToPixel( QgsMapToPixel( mupp ) );
@@ -251,8 +268,8 @@ void QgsSymbolLegendNode::checkAll( bool state )
   if ( !vlayer || !vlayer->renderer() )
     return;
 
-  QgsLegendSymbolList symbolList = vlayer->renderer()->legendSymbolItems();
-  Q_FOREACH ( const QgsLegendSymbolItem &item, symbolList )
+  const QgsLegendSymbolList symbolList = vlayer->renderer()->legendSymbolItems();
+  for ( const auto &item : symbolList )
   {
     vlayer->renderer()->checkLegendSymbolItem( item.ruleKey(), state );
   }
@@ -286,10 +303,10 @@ QVariant QgsSymbolLegendNode::data( int role ) const
           QPainter painter( &pix );
           painter.setRenderHint( QPainter::Antialiasing );
           context->setPainter( &painter );
-          QFontMetricsF fm( mTextOnSymbolTextFormat.scaledFont( *context.get() ) );
+          QFontMetricsF fm( mTextOnSymbolTextFormat.scaledFont( *context ) );
           qreal yBaselineVCenter = ( mIconSize.height() + fm.ascent() - fm.descent() ) / 2;
           QgsTextRenderer::drawText( QPointF( mIconSize.width() / 2, yBaselineVCenter ), 0, QgsTextRenderer::AlignCenter,
-                                     QStringList() << mTextOnSymbolLabel, *context.get(), mTextOnSymbolTextFormat );
+                                     QStringList() << mTextOnSymbolLabel, *context, mTextOnSymbolTextFormat );
         }
       }
       else
@@ -636,10 +653,13 @@ QImage QgsWmsLegendNode::getLegendGraphic() const
 
     QgsRasterLayer *layer = qobject_cast<QgsRasterLayer *>( mLayerNode->layer() );
     const QgsLayerTreeModel *mod = model();
-    if ( ! mod ) return mImage;
+    if ( ! mod )
+      return mImage;
     const QgsMapSettings *ms = mod->legendFilterMapSettings();
 
     QgsRasterDataProvider *prov = layer->dataProvider();
+    if ( ! prov )
+      return mImage;
 
     Q_ASSERT( ! mFetcher );
     mFetcher.reset( prov->getLegendGraphicFetcher( ms ) );
@@ -658,7 +678,7 @@ QImage QgsWmsLegendNode::getLegendGraphic() const
 
 QVariant QgsWmsLegendNode::data( int role ) const
 {
-  //QgsDebugMsg( QString("XXX data called with role %1 -- mImage size is %2x%3").arg(role).arg(mImage.width()).arg(mImage.height()) );
+  //QgsDebugMsg( QStringLiteral("XXX data called with role %1 -- mImage size is %2x%3").arg(role).arg(mImage.width()).arg(mImage.height()) );
 
   if ( role == Qt::DecorationRole )
   {
@@ -718,7 +738,7 @@ void QgsWmsLegendNode::getLegendGraphicErrored( const QString &msg )
   if ( ! mFetcher ) return; // must be coming after finish
 
   mImage = renderMessage( msg );
-  //QgsDebugMsg( QString("XXX emitting dataChanged after writing an image of %1x%2").arg(mImage.width()).arg(mImage.height()) );
+  //QgsDebugMsg( QStringLiteral("XXX emitting dataChanged after writing an image of %1x%2").arg(mImage.width()).arg(mImage.height()) );
 
   emit dataChanged();
 
@@ -733,13 +753,13 @@ void QgsWmsLegendNode::getLegendGraphicFinished( const QImage &image )
 {
   if ( ! mFetcher ) return; // must be coming after error
 
-  //QgsDebugMsg( QString("XXX legend graphic finished, image is %1x%2").arg(theImage.width()).arg(theImage.height()) );
+  //QgsDebugMsg( QStringLiteral("XXX legend graphic finished, image is %1x%2").arg(theImage.width()).arg(theImage.height()) );
   if ( ! image.isNull() )
   {
     if ( image != mImage )
     {
       mImage = image;
-      //QgsDebugMsg( QString("XXX emitting dataChanged") );
+      //QgsDebugMsg( QStringLiteral("XXX emitting dataChanged") );
       emit dataChanged();
     }
     mValid = true; // only if not null I guess
@@ -749,7 +769,7 @@ void QgsWmsLegendNode::getLegendGraphicFinished( const QImage &image )
 
 void QgsWmsLegendNode::invalidateMapBasedData()
 {
-  //QgsDebugMsg( QString("XXX invalidateMapBasedData called") );
+  //QgsDebugMsg( QStringLiteral("XXX invalidateMapBasedData called") );
   // TODO: do this only if this extent != prev extent ?
   mValid = false;
   emit dataChanged();

@@ -32,8 +32,8 @@ from qgis.gui import (QgsLayerTreeMapCanvasBridge,
                       QgsMapCanvas)
 
 from qgis.PyQt.QtTest import QSignalSpy
-from qgis.PyQt.QtCore import QT_VERSION_STR, QTemporaryFile, QTemporaryDir
-import sip
+from qgis.PyQt.QtCore import QT_VERSION_STR, QTemporaryDir
+from qgis.PyQt import sip
 
 from qgis.testing import start_app, unittest
 from utilities import (unitTestDataPath)
@@ -249,12 +249,17 @@ class TestQgsProject(unittest.TestCase):
         QgsProject.instance().removeAllMapLayers()
 
     def test_addMapLayerInvalid(self):
-        """ test that invalid map layersd can't be added to registry """
+        """ test that invalid map layers can be added to registry """
         QgsProject.instance().removeAllMapLayers()
 
-        self.assertEqual(QgsProject.instance().addMapLayer(QgsVectorLayer("Point?field=x:string", 'test', "xxx")), None)
-        self.assertEqual(len(QgsProject.instance().mapLayersByName('test')), 0)
-        self.assertEqual(QgsProject.instance().count(), 0)
+        vl = QgsVectorLayer("Point?field=x:string", 'test', "xxx")
+        self.assertEqual(QgsProject.instance().addMapLayer(vl), vl)
+        self.assertFalse(vl in QgsProject.instance().mapLayers(True).values())
+        self.assertEqual(len(QgsProject.instance().mapLayersByName('test')), 1)
+        self.assertEqual(QgsProject.instance().count(), 1)
+        self.assertEqual(QgsProject.instance().validCount(), 0)
+
+        self.assertEqual(len(QgsProject.instance().mapLayers(True)), 0)
 
         QgsProject.instance().removeAllMapLayers()
 
@@ -313,12 +318,15 @@ class TestQgsProject(unittest.TestCase):
         QgsProject.instance().removeAllMapLayers()
 
     def test_addMapLayersInvalid(self):
-        """ test that invalid map layersd can't be added to registry """
+        """ test that invalid map layers can be added to registry """
         QgsProject.instance().removeAllMapLayers()
 
-        self.assertEqual(QgsProject.instance().addMapLayers([QgsVectorLayer("Point?field=x:string", 'test', "xxx")]), [])
-        self.assertEqual(len(QgsProject.instance().mapLayersByName('test')), 0)
-        self.assertEqual(QgsProject.instance().count(), 0)
+        vl = QgsVectorLayer("Point?field=x:string", 'test', "xxx")
+        self.assertEqual(QgsProject.instance().addMapLayers([vl]), [vl])
+        self.assertFalse(vl in QgsProject.instance().mapLayers(True).values())
+        self.assertEqual(len(QgsProject.instance().mapLayersByName('test')), 1)
+        self.assertEqual(QgsProject.instance().count(), 1)
+        self.assertEqual(QgsProject.instance().validCount(), 0)
 
         QgsProject.instance().removeAllMapLayers()
 
@@ -1104,6 +1112,62 @@ class TestQgsProject(unittest.TestCase):
 
         self.assertEqual(p0.baseName(), '2.18.21')
         self.assertEqual(p1.baseName(), 'qgis-3.2.0')
+
+    def testWriteEntry(self):
+
+        tmpDir = QTemporaryDir()
+        tmpFile = "{}/project.qgs".format(tmpDir.path())
+
+        # zip with existing file
+        project = QgsProject()
+        query = 'select * from "sample DH" where "sample DH"."Elev" > 130 and "sample DH"."Elev" < 140'
+        self.assertTrue(project.writeEntry('myscope', 'myentry', query))
+        self.assertTrue(project.write(tmpFile))
+
+        self.assertTrue(project.read(tmpFile))
+        q, ok = project.readEntry('myscope', 'myentry')
+        self.assertTrue(ok)
+        self.assertEqual(q, query)
+
+    def testDirtying(self):
+
+        project = QgsProject()
+
+        # writing a new entry should dirty the project
+        project.setDirty(False)
+        self.assertTrue(project.writeEntry('myscope', 'myentry', True))
+        self.assertTrue(project.isDirty())
+
+        # over-writing a pre-existing entry with the same value should _not_ dirty the project
+        project.setDirty(False)
+        self.assertTrue(project.writeEntry('myscope', 'myentry', True))
+        self.assertFalse(project.isDirty())
+
+        # over-writing a pre-existing entry with a different value should dirty the project
+        project.setDirty(False)
+        self.assertTrue(project.writeEntry('myscope', 'myentry', False))
+        self.assertTrue(project.isDirty())
+
+        # removing an existing entry should dirty the project
+        project.setDirty(False)
+        self.assertTrue(project.removeEntry('myscope', 'myentry'))
+        self.assertTrue(project.isDirty())
+
+        # removing a non-existing entry should _not_ dirty the project
+        project.setDirty(False)
+        self.assertTrue(project.removeEntry('myscope', 'myentry'))
+        self.assertFalse(project.isDirty())
+
+        # setting a project CRS with a new value should dirty the project
+        project.setCrs(QgsCoordinateReferenceSystem('EPSG:4326'))
+        project.setDirty(False)
+        project.setCrs(QgsCoordinateReferenceSystem('EPSG:3148'))
+        self.assertTrue(project.isDirty())
+
+        # setting a project CRS with the same project CRS should not dirty the project
+        project.setDirty(False)
+        project.setCrs(QgsCoordinateReferenceSystem('EPSG:3148'))
+        self.assertFalse(project.isDirty())
 
 
 if __name__ == '__main__':

@@ -21,11 +21,13 @@
 #include "qgis_core.h"
 
 #include "qgsrasterlayer.h"
-#include "qgsvectorlayer.h"
 #include "qgsmessagelog.h"
 #include "qgsspatialindex.h"
 #include "qgsprocessing.h"
+#include "qgsfeaturesink.h"
+#include "qgsfeaturesource.h"
 
+class QgsMeshLayer;
 class QgsProject;
 class QgsProcessingContext;
 class QgsMapLayerStore;
@@ -43,7 +45,6 @@ class QgsProcessingFeatureSource;
  */
 class CORE_EXPORT QgsProcessingUtils
 {
-
   public:
 
     /**
@@ -53,6 +54,7 @@ class CORE_EXPORT QgsProcessingUtils
      * If the \a sort argument is true then the layers will be sorted by their QgsMapLayer::name()
      * value.
      * \see compatibleVectorLayers()
+     * \see compatibleMeshLayers()
      * \see compatibleLayers()
      */
     static QList< QgsRasterLayer * > compatibleRasterLayers( QgsProject *project, bool sort = true );
@@ -69,11 +71,27 @@ class CORE_EXPORT QgsProcessingUtils
      * If the \a sort argument is true then the layers will be sorted by their QgsMapLayer::name()
      * value.
      * \see compatibleRasterLayers()
+     * \see compatibleMeshLayers()
      * \see compatibleLayers()
      */
     static QList< QgsVectorLayer * > compatibleVectorLayers( QgsProject *project,
         const QList< int > &sourceTypes = QList< int >(),
         bool sort = true );
+
+    /**
+     * Returns a list of mesh layers from a \a project which are compatible with the processing
+     * framework.
+     *
+     * If the \a sort argument is true then the layers will be sorted by their QgsMapLayer::name()
+     * value.
+     *
+     * \see compatibleRasterLayers()
+     * \see compatibleVectorLayers()
+     * \see compatibleLayers()
+     *
+     * \since QGIS 3.6
+     */
+    static QList<QgsMeshLayer *> compatibleMeshLayers( QgsProject *project, bool sort = true );
 
     /**
      * Returns a list of map layers from a \a project which are compatible with the processing
@@ -87,6 +105,18 @@ class CORE_EXPORT QgsProcessingUtils
     static QList< QgsMapLayer * > compatibleLayers( QgsProject *project, bool sort = true );
 
     /**
+     * Layer type hints.
+     * \since QGIS 3.4
+     */
+    enum LayerHint
+    {
+      UnknownType, //!< Unknown layer type
+      Vector, //!< Vector layer type
+      Raster, //!< Raster layer type
+      Mesh, //!< Mesh layer type  \since QGIS 3.6
+    };
+
+    /**
      * Interprets a string as a map layer within the supplied \a context.
      *
      * The method will attempt to
@@ -95,8 +125,10 @@ class CORE_EXPORT QgsProcessingUtils
      * If the string is a file path and \a allowLoadingNewLayers is true, then the layer at this
      * file path will be loaded and added to the context's temporary layer store.
      * Ownership of the layer remains with the \a context or the context's current project.
+     *
+     * The \a typeHint can be used to dictate the type of map layer expected.
      */
-    static QgsMapLayer *mapLayerFromString( const QString &string, QgsProcessingContext &context, bool allowLoadingNewLayers = true );
+    static QgsMapLayer *mapLayerFromString( const QString &string, QgsProcessingContext &context, bool allowLoadingNewLayers = true, LayerHint typeHint = UnknownType );
 
     /**
      * Converts a variant \a value to a new feature source.
@@ -140,13 +172,13 @@ class CORE_EXPORT QgsProcessingUtils
      * The caller takes responsibility for deleting the returned sink.
      */
 #ifndef SIP_RUN
-    static QgsFeatureSink *createFeatureSink(
-      QString &destination,
-      QgsProcessingContext &context,
-      const QgsFields &fields,
-      QgsWkbTypes::Type geometryType,
-      const QgsCoordinateReferenceSystem &crs,
-      const QVariantMap &createOptions = QVariantMap() ) SIP_FACTORY;
+    static QgsFeatureSink *createFeatureSink( QString &destination,
+        QgsProcessingContext &context,
+        const QgsFields &fields,
+        QgsWkbTypes::Type geometryType,
+        const QgsCoordinateReferenceSystem &crs,
+        const QVariantMap &createOptions = QVariantMap(),
+        QgsFeatureSink::SinkFlags sinkFlags = nullptr ) SIP_FACTORY;
 #endif
 
     /**
@@ -250,8 +282,8 @@ class CORE_EXPORT QgsProcessingUtils
     static QgsFields indicesToFields( const QList<int> &indices, const QgsFields &fields );
 
   private:
-
     static bool canUseLayer( const QgsRasterLayer *layer );
+    static bool canUseLayer( const QgsMeshLayer *layer );
     static bool canUseLayer( const QgsVectorLayer *layer,
                              const QList< int > &sourceTypes = QList< int >() );
 
@@ -265,7 +297,7 @@ class CORE_EXPORT QgsProcessingUtils
      * returned.
      * \see mapLayerFromString()
      */
-    static QgsMapLayer *mapLayerFromStore( const QString &string, QgsMapLayerStore *store );
+    static QgsMapLayer *mapLayerFromStore( const QString &string, QgsMapLayerStore *store, LayerHint typeHint = UnknownType );
 
     /**
      * Interprets a string as a map layer. The method will attempt to
@@ -273,7 +305,7 @@ class CORE_EXPORT QgsProcessingUtils
      * then the layer at this file path will be loaded.
      * The caller takes responsibility for deleting the returned map layer.
      */
-    static QgsMapLayer *loadMapLayerFromString( const QString &string );
+    static QgsMapLayer *loadMapLayerFromString( const QString &string, LayerHint typeHint = UnknownType );
 
     static void parseDestinationString( QString &destination, QString &providerKey, QString &uri, QString &layerName, QString &format, QMap<QString, QVariant> &options, bool &useWriter );
 

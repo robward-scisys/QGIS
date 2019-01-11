@@ -341,7 +341,7 @@ bool QgsGeorefPluginGui::getTransformSettings()
   }
 
   d.getTransformSettings( mTransformParam, mResamplingMethod, mCompressionMethod,
-                          mModifiedRasterFileName, mProjection, mPdfOutputMapFile, mPdfOutputFile, mUseZeroForTrans, mLoadInQgis, mUserResX, mUserResY );
+                          mModifiedRasterFileName, mProjection, mPdfOutputMapFile, mPdfOutputFile, mSaveGcp, mUseZeroForTrans, mLoadInQgis, mUserResX, mUserResY );
   mTransformParamLabel->setText( tr( "Transform: " ) + convertTransformEnumToString( mTransformParam ) );
   mGeorefTransform.selectTransformParametrisation( mTransformParam );
   mGCPListWidget->setGeorefTransform( &mGeorefTransform );
@@ -395,7 +395,7 @@ void QgsGeorefPluginGui::generateGDALScript()
         break;
       }
     }
-    FALLTHROUGH;
+    FALLTHROUGH
     default:
       mMessageBar->pushMessage( tr( "Invalid Transform" ), tr( "GDAL scripting is not supported for %1 transformation." )
                                 .arg( convertTransformEnumToString( mTransformParam ) )
@@ -584,7 +584,7 @@ void QgsGeorefPluginGui::showCoordDialog( const QgsPointXY &pixelCoords )
   if ( mLayer && !mMapCoordsDialog )
   {
     mMapCoordsDialog = new QgsMapCoordsDialog( mIface->mapCanvas(), pixelCoords, this );
-    connect( mMapCoordsDialog, &QgsMapCoordsDialog::pointAdded,
+    connect( mMapCoordsDialog, &QgsMapCoordsDialog::pointAdded, this,
     [this]( const QgsPointXY & a, const QgsPointXY & b ) { this->addPoint( a, b ); }
            );
     mMapCoordsDialog->show();
@@ -593,7 +593,7 @@ void QgsGeorefPluginGui::showCoordDialog( const QgsPointXY &pixelCoords )
 
 void QgsGeorefPluginGui::loadGCPsDialog()
 {
-  QString selectedFile = mRasterFileName.isEmpty() ? QLatin1String( "" ) : mRasterFileName + ".points";
+  QString selectedFile = mRasterFileName.isEmpty() ? QString() : mRasterFileName + ".points";
   mGCPpointsFileName = QFileDialog::getOpenFileName( this, tr( "Load GCP Points" ),
                        selectedFile, tr( "GCP file" ) + " (*.points)" );
   if ( mGCPpointsFileName.isEmpty() )
@@ -617,7 +617,7 @@ void QgsGeorefPluginGui::saveGCPsDialog()
     return;
   }
 
-  QString selectedFile = mRasterFileName.isEmpty() ? QLatin1String( "" ) : mRasterFileName + ".points";
+  QString selectedFile = mRasterFileName.isEmpty() ? QString() : mRasterFileName + ".points";
   mGCPpointsFileName = QFileDialog::getSaveFileName( this, tr( "Save GCP Points" ),
                        selectedFile,
                        tr( "GCP file" ) + " (*.points)" );
@@ -696,7 +696,7 @@ void QgsGeorefPluginGui::showHelp()
 // Comfort slots
 void QgsGeorefPluginGui::jumpToGCP( uint theGCPIndex )
 {
-  if ( ( int )theGCPIndex >= mPoints.size() )
+  if ( static_cast<int>( theGCPIndex ) >= mPoints.size() )
   {
     return;
   }
@@ -1250,7 +1250,7 @@ bool QgsGeorefPluginGui::loadGCPs( /*bool verbose*/ )
 
     QgsPointXY mapCoords( ls.at( 0 ).toDouble(), ls.at( 1 ).toDouble() ); // map x,y
     QgsPointXY pixelCoords( ls.at( 2 ).toDouble(), ls.at( 3 ).toDouble() ); // pixel x,y
-    if ( ls.count() == 5 )
+    if ( ls.count() == 5 || ls.count() == 8 )
     {
       bool enable = ls.at( 4 ).toInt();
       addPoint( pixelCoords, mapCoords, enable, false );
@@ -1280,15 +1280,19 @@ void QgsGeorefPluginGui::saveGCPs()
   if ( pointFile.open( QIODevice::WriteOnly | QIODevice::Truncate ) )
   {
     QTextStream points( &pointFile );
-    points << "mapX,mapY,pixelX,pixelY,enable" << endl;
+    points << "mapX,mapY,pixelX,pixelY,enable,dX,dY,residual" << endl;
     Q_FOREACH ( QgsGeorefDataPoint *pt, mPoints )
     {
-      points << QStringLiteral( "%1,%2,%3,%4,%5" )
+      points << QStringLiteral( "%1,%2,%3,%4,%5,%6,%7,%8" )
              .arg( qgsDoubleToString( pt->mapCoords().x() ),
                    qgsDoubleToString( pt->mapCoords().y() ),
                    qgsDoubleToString( pt->pixelCoords().x() ),
                    qgsDoubleToString( pt->pixelCoords().y() ) )
-             .arg( pt->isEnabled() ) << endl;
+             .arg( pt->isEnabled() )
+             .arg( qgsDoubleToString( pt->residual().x() ),
+                   qgsDoubleToString( pt->residual().y() ),
+                   qgsDoubleToString( std::sqrt( pt->residual().x() * pt->residual().x() + pt->residual().y() * pt->residual().y() ) ) )
+             << endl;
     }
 
     mInitialPoints = mPoints;
@@ -1409,6 +1413,11 @@ bool QgsGeorefPluginGui::georeference()
       if ( !mPdfOutputMapFile.isEmpty() )
       {
         writePDFMapFile( mPdfOutputMapFile, mGeorefTransform );
+      }
+      if ( !mSaveGcp.isEmpty() )
+      {
+        mGCPpointsFileName = mModifiedRasterFileName + QLatin1String( ".points" );
+        saveGCPs();
       }
       return true;
     }
@@ -1933,7 +1942,7 @@ bool QgsGeorefPluginGui::checkReadyGeoref()
     return false;
   }
 
-  if ( mPoints.count() < ( int )mGeorefTransform.getMinimumGCPCount() )
+  if ( mPoints.count() < static_cast<int>( mGeorefTransform.getMinimumGCPCount() ) )
   {
     mMessageBar->pushMessage( tr( "Not Enough GCPs" ), tr( "%1 transformation requires at least %2 GCPs. Please define more." )
                               .arg( convertTransformEnumToString( mTransformParam ) ).arg( mGeorefTransform.getMinimumGCPCount() )
@@ -1996,16 +2005,16 @@ QgsRectangle QgsGeorefPluginGui::transformViewportBoundingBox( const QgsRectangl
       switch ( edge )
       {
         case 0:
-          src = QgsPointXY( oX + ( double )s * stepX, oY );
+          src = QgsPointXY( oX + static_cast<double>( s ) * stepX, oY );
           break;
         case 1:
-          src = QgsPointXY( oX + ( double )s * stepX, dY );
+          src = QgsPointXY( oX + static_cast<double>( s ) * stepX, dY );
           break;
         case 2:
-          src = QgsPointXY( oX, oY + ( double )s * stepY );
+          src = QgsPointXY( oX, oY + static_cast<double>( s ) * stepY );
           break;
         case 3:
-          src = QgsPointXY( dX, oY + ( double )s * stepY );
+          src = QgsPointXY( dX, oY + static_cast<double>( s ) * stepY );
           break;
       }
       t.transform( src, raster, rasterToWorld );
@@ -2056,7 +2065,7 @@ QString QgsGeorefPluginGui::convertResamplingEnumToString( QgsImageWarper::Resam
     case QgsImageWarper::Lanczos:
       return QStringLiteral( "lanczos" );
   }
-  return QLatin1String( "" );
+  return QString();
 }
 
 int QgsGeorefPluginGui::polynomialOrder( QgsGeorefTransform::TransformParametrisation transform )

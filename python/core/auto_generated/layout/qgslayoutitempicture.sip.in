@@ -286,8 +286,6 @@ Forces a recalculation of the picture's frame size
 
     virtual void refreshDataDefinedProperty( QgsLayoutObject::DataDefinedProperty property = QgsLayoutObject::AllProperties );
 
-    virtual bool containsAdvancedEffects() const;
-
 
   signals:
     void pictureRotationChanged( double newRotation );
@@ -299,7 +297,7 @@ Is emitted on picture rotation change
 
     virtual void draw( QgsLayoutItemRenderContext &context );
 
-    virtual QSizeF applyItemSizeConstraint( const QSizeF &targetSize );
+    virtual QSizeF applyItemSizeConstraint( QSizeF targetSize );
 
     virtual bool writePropertiesToElement( QDomElement &element, QDomDocument &document, const QgsReadWriteContext &context ) const;
 

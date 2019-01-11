@@ -25,38 +25,26 @@
 #include "qgsfeaturefilter.h"
 #include <QDomDocument>
 #include <QMap>
-#include <QPair>
 #include <QString>
-#include <map>
 
-class QgsCapabilitiesCache;
 class QgsCoordinateReferenceSystem;
 class QgsPrintLayout;
-class QgsConfigParser;
 class QgsFeature;
-class QgsFeatureRenderer;
 class QgsMapLayer;
 class QgsMapSettings;
 class QgsPointXY;
 class QgsRasterLayer;
-class QgsRasterRenderer;
 class QgsRectangle;
 class QgsRenderContext;
 class QgsVectorLayer;
-class QgsSymbol;
-class QgsSymbol;
 class QgsAccessControl;
 class QgsDxfExport;
 class QgsLayerTreeModel;
 class QgsLayerTree;
 
-class QColor;
-class QFile;
-class QFont;
 class QImage;
 class QPaintDevice;
 class QPainter;
-class QStandardItem;
 class QgsLayerTreeGroup;
 
 namespace QgsWms
@@ -77,7 +65,7 @@ namespace QgsWms
           QgsConfigParser and QgsCapabilitiesCache*/
       QgsRenderer( QgsServerInterface *serverIface,
                    const QgsProject *project,
-                   const QgsServerRequest::Parameters &parameters );
+                   const QgsWmsParameters &parameters );
 
       ~QgsRenderer();
 
@@ -162,7 +150,7 @@ namespace QgsWms
       void setLayerOpacity( QgsMapLayer *layer, int opacity ) const;
 
       // Set layer filter
-      void setLayerFilter( QgsMapLayer *layer, const QStringList &filter );
+      void setLayerFilter( QgsMapLayer *layer, const QList<QgsWmsParametersFilter> &filters );
 
       // Set layer python filter
       void setLayerAccessControlFilter( QgsMapLayer *layer ) const;
@@ -278,12 +266,18 @@ namespace QgsWms
         QStringList *attributes = nullptr ) const;
 
       //! Replaces attribute value with ValueRelation or ValueRelation if defined. Otherwise returns the original value
-      static QString replaceValueMapAndRelation( QgsVectorLayer *vl, int idx, const QString &attributeVal );
+      static QString replaceValueMapAndRelation( QgsVectorLayer *vl, int idx, const QVariant &attributeVal );
       //! Gets layer search rectangle (depending on request parameter, layer type, map and layer crs)
       QgsRectangle featureInfoSearchRect( QgsVectorLayer *ml, const QgsMapSettings &ms, const QgsRenderContext &rct, const QgsPointXY &infoPoint ) const;
 
-      //! configure the print layout for the GetPrint request
-      bool configurePrintLayout( QgsPrintLayout *c, const QgsMapSettings &mapSettings );
+      /*
+       * Configures the print layout for the GetPrint request
+       *\param c the print layout
+       *\param mapSettings the map settings
+       *\param atlasPrint true if atlas is used for printing
+       *\returns true in case of success
+       * */
+      bool configurePrintLayout( QgsPrintLayout *c, const QgsMapSettings &mapSettings, bool atlasPrint = false );
 
       //! Creates external WMS layer. Caller takes ownership
       QgsMapLayer *createExternalWMSLayer( const QString &externalLayerId ) const;
@@ -292,7 +286,7 @@ namespace QgsWms
 
     private:
 
-      const QgsServerRequest::Parameters &mParameters;
+      const QgsWmsParameters &mWmsParameters;
 
 #ifdef HAVE_SERVER_PYTHON_PLUGINS
       //! The access control helper
@@ -302,7 +296,6 @@ namespace QgsWms
 
       const QgsServerSettings &mSettings;
       const QgsProject *mProject = nullptr;
-      QgsWmsParameters mWmsParameters;
       QStringList mRestrictedLayers;
       QMap<QString, QgsMapLayer *> mNicknameLayers;
       QMap<QString, QList<QgsMapLayer *> > mLayerGroups;

@@ -21,11 +21,8 @@
 #include "qgswcsdescribecoverage.h"
 
 #include "qgsproject.h"
-#include "qgsexception.h"
 #include "qgsmaplayer.h"
 #include "qgsrasterlayer.h"
-#include "qgsmapserviceexception.h"
-#include "qgscoordinatereferencesystem.h"
 
 namespace QgsWcs
 {
@@ -36,10 +33,34 @@ namespace QgsWcs
   void writeDescribeCoverage( QgsServerInterface *serverIface, const QgsProject *project, const QString &version,
                               const QgsServerRequest &request, QgsServerResponse &response )
   {
-    QDomDocument doc = createDescribeCoverageDocument( serverIface, project, version, request );
+    QgsAccessControl *accessControl = nullptr;
+#ifdef HAVE_SERVER_PYTHON_PLUGINS
+    accessControl = serverIface->accessControls();
+#endif
+    QDomDocument doc;
+    const QDomDocument *describeDocument = nullptr;
+
+    QgsServerCacheManager *cacheManager = nullptr;
+#ifdef HAVE_SERVER_PYTHON_PLUGINS
+    cacheManager = serverIface->cacheManager();
+#endif
+    if ( cacheManager && cacheManager->getCachedDocument( &doc, project, request, accessControl ) )
+    {
+      describeDocument = &doc;
+    }
+    else //describe feature xml not in cache. Create a new one
+    {
+      doc = createDescribeCoverageDocument( serverIface, project, version, request );
+
+      if ( cacheManager )
+      {
+        cacheManager->setCachedDocument( &doc, project, request, accessControl );
+      }
+      describeDocument = &doc;
+    }
 
     response.setHeader( "Content-Type", "text/xml; charset=utf-8" );
-    response.write( doc.toByteArray() );
+    response.write( describeDocument->toByteArray() );
   }
 
 
@@ -120,7 +141,7 @@ namespace QgsWcs
       if ( coveNameList.size() == 0 || coveNameList.contains( name ) )
       {
         QgsRasterLayer *rLayer = qobject_cast<QgsRasterLayer *>( layer );
-        coveDescElement.appendChild( getCoverageOffering( doc, const_cast<QgsRasterLayer *>( rLayer ) ) );
+        coveDescElement.appendChild( getCoverageOffering( doc, const_cast<QgsRasterLayer *>( rLayer ), project ) );
       }
     }
     return doc;

@@ -46,21 +46,27 @@
 #include "qgsmaplayerstylemanagerwidget.h"
 #include "qgsruntimeprofiler.h"
 #include "qgsrasterminmaxwidget.h"
+#include "qgisapp.h"
+#include "qgssymbolwidgetcontext.h"
 
 #ifdef HAVE_3D
 #include "qgsvectorlayer3drendererwidget.h"
 #endif
 
 
-QgsLayerStylingWidget::QgsLayerStylingWidget( QgsMapCanvas *canvas, const QList<QgsMapLayerConfigWidgetFactory *> &pages, QWidget *parent )
+QgsLayerStylingWidget::QgsLayerStylingWidget( QgsMapCanvas *canvas, QgsMessageBar *messageBar, const QList<QgsMapLayerConfigWidgetFactory *> &pages, QWidget *parent )
   : QWidget( parent )
   , mNotSupportedPage( 0 )
   , mLayerPage( 1 )
   , mMapCanvas( canvas )
+  , mMessageBar( messageBar )
   , mBlockAutoApply( false )
   , mPageFactories( pages )
 {
   setupUi( this );
+
+  mOptionsListWidget->setIconSize( QgisApp::instance()->iconSize( false ) );
+  mOptionsListWidget->setMaximumWidth( static_cast< int >( mOptionsListWidget->iconSize().width() * 1.18 ) );
 
   connect( QgsProject::instance(), static_cast < void ( QgsProject::* )( QgsMapLayer * ) > ( &QgsProject::layerWillBeRemoved ), this, &QgsLayerStylingWidget::layerAboutToBeRemoved );
 
@@ -71,6 +77,7 @@ QgsLayerStylingWidget::QgsLayerStylingWidget( QgsMapCanvas *canvas, const QList<
   mAutoApplyTimer->setSingleShot( true );
 
   mUndoWidget = new QgsUndoWidget( this, mMapCanvas );
+  mUndoWidget->setButtonsVisible( false );
   mUndoWidget->setAutoDelete( false );
   mUndoWidget->setObjectName( QStringLiteral( "Undo Styles" ) );
   mUndoWidget->hide();
@@ -377,7 +384,10 @@ void QgsLayerStylingWidget::updateCurrentWidgetLayer()
       case 0: // Style
       {
         QgsRendererPropertiesDialog *styleWidget = new QgsRendererPropertiesDialog( vlayer, QgsStyle::defaultStyle(), true, mStackedWidget );
-        styleWidget->setMapCanvas( mMapCanvas );
+        QgsSymbolWidgetContext context;
+        context.setMapCanvas( mMapCanvas );
+        context.setMessageBar( mMessageBar );
+        styleWidget->setContext( context );
         styleWidget->setDockMode( true );
         connect( styleWidget, &QgsRendererPropertiesDialog::widgetChanged, this, &QgsLayerStylingWidget::autoApply );
         QgsPanelWidgetWrapper *wrapper = new QgsPanelWidgetWrapper( styleWidget, mStackedWidget );

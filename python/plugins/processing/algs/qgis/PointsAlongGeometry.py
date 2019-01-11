@@ -80,10 +80,10 @@ class PointsAlongGeometry(QgisAlgorithm):
                                                               self.tr('Input layer'), [QgsProcessing.TypeVectorPolygon, QgsProcessing.TypeVectorLine]))
         self.addParameter(QgsProcessingParameterDistance(self.DISTANCE,
                                                          self.tr('Distance'), parentParameterName=self.INPUT, minValue=0.0, defaultValue=1.0))
-        self.addParameter(QgsProcessingParameterNumber(self.START_OFFSET,
-                                                       self.tr('Start offset'), type=QgsProcessingParameterNumber.Double, minValue=0.0, defaultValue=0.0))
-        self.addParameter(QgsProcessingParameterNumber(self.END_OFFSET,
-                                                       self.tr('End offset'), type=QgsProcessingParameterNumber.Double, minValue=0.0, defaultValue=0.0))
+        self.addParameter(QgsProcessingParameterDistance(self.START_OFFSET,
+                                                         self.tr('Start offset'), parentParameterName=self.INPUT, minValue=0.0, defaultValue=0.0))
+        self.addParameter(QgsProcessingParameterDistance(self.END_OFFSET,
+                                                         self.tr('End offset'), parentParameterName=self.INPUT, minValue=0.0, defaultValue=0.0))
 
         self.addParameter(QgsProcessingParameterFeatureSink(self.OUTPUT, self.tr('Points'), QgsProcessing.TypeVectorPoint))
 
@@ -107,7 +107,7 @@ class PointsAlongGeometry(QgisAlgorithm):
         fields.append(QgsField('angle', QVariant.Double))
 
         (sink, dest_id) = self.parameterAsSink(parameters, self.OUTPUT, context,
-                                               fields, QgsWkbTypes.Point, source.sourceCrs())
+                                               fields, QgsWkbTypes.Point, source.sourceCrs(), QgsFeatureSink.RegeneratePrimaryKey)
         if sink is None:
             raise QgsProcessingException(self.invalidSinkError(parameters, self.OUTPUT))
 

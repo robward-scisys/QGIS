@@ -79,12 +79,12 @@ QgsRelationReferenceWidget::QgsRelationReferenceWidget( QWidget *parent )
   // open form button
   mOpenFormButton = new QToolButton();
   mOpenFormButton->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/mActionPropertyItem.svg" ) ) );
-  mOpenFormButton->setText( tr( "Open related feature form" ) );
+  mOpenFormButton->setText( tr( "Open Related Feature Form" ) );
   editLayout->addWidget( mOpenFormButton );
 
   mAddEntryButton = new QToolButton();
   mAddEntryButton->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/mActionAdd.svg" ) ) );
-  mAddEntryButton->setText( tr( "Add new entry" ) );
+  mAddEntryButton->setText( tr( "Add New Entry" ) );
   editLayout->addWidget( mAddEntryButton );
 
   // highlight button
@@ -102,14 +102,14 @@ QgsRelationReferenceWidget::QgsRelationReferenceWidget( QWidget *parent )
   // map identification button
   mMapIdentificationButton = new QToolButton( this );
   mMapIdentificationButton->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/mActionMapIdentification.svg" ) ) );
-  mMapIdentificationButton->setText( tr( "Select on map" ) );
+  mMapIdentificationButton->setText( tr( "Select on Map" ) );
   mMapIdentificationButton->setCheckable( true );
   editLayout->addWidget( mMapIdentificationButton );
 
   // remove foreign key button
   mRemoveFKButton = new QToolButton( this );
   mRemoveFKButton->setIcon( QgsApplication::getThemeIcon( QStringLiteral( "/mActionRemove.svg" ) ) );
-  mRemoveFKButton->setText( tr( "No selection" ) );
+  mRemoveFKButton->setText( tr( "No Selection" ) );
   editLayout->addWidget( mRemoveFKButton );
 
   // add line to top layout
@@ -152,8 +152,7 @@ QgsRelationReferenceWidget::~QgsRelationReferenceWidget()
 {
   deleteHighlight();
   unsetMapTool();
-  if ( mMapTool )
-    delete mMapTool;
+  delete mMapTool;
 }
 
 void QgsRelationReferenceWidget::updateIndex()
@@ -401,8 +400,7 @@ void QgsRelationReferenceWidget::setEditorContext( const QgsAttributeEditorConte
   mCanvas = canvas;
   mMessageBar = messageBar;
 
-  if ( mMapTool )
-    delete mMapTool;
+  delete mMapTool;
   mMapTool = new QgsMapToolIdentifyFeature( mCanvas );
   mMapTool->setButton( mMapIdentificationButton );
 }
@@ -460,8 +458,8 @@ void QgsRelationReferenceWidget::showEvent( QShowEvent *e )
   Q_UNUSED( e )
 
   mShown = true;
-
-  init();
+  if ( !mInitialized )
+    init();
 }
 
 void QgsRelationReferenceWidget::init()
@@ -555,8 +553,12 @@ void QgsRelationReferenceWidget::init()
 
     // Only connect after iterating, to have only one iterator on the referenced table at once
     connect( mComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsRelationReferenceWidget::comboReferenceChanged );
-    updateAttributeEditorFrame( mFeature );
+    //call it for the first time
+    emit mComboBox->currentIndexChanged( mComboBox->currentIndex() );
+
     QApplication::restoreOverrideCursor();
+
+    mInitialized = true;
   }
 }
 

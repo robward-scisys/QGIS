@@ -65,7 +65,6 @@ from .DensifyGeometriesInterval import DensifyGeometriesInterval
 from .EliminateSelection import EliminateSelection
 from .ExecuteSQL import ExecuteSQL
 from .ExportGeometryInfo import ExportGeometryInfo
-from .ExtendLines import ExtendLines
 from .ExtentFromLayer import ExtentFromLayer
 from .ExtractSpecificVertices import ExtractSpecificVertices
 from .FieldPyculator import FieldsPyculator
@@ -84,10 +83,10 @@ from .IdwInterpolation import IdwInterpolation
 from .ImportIntoPostGIS import ImportIntoPostGIS
 from .ImportIntoSpatialite import ImportIntoSpatialite
 from .KeepNBiggestParts import KeepNBiggestParts
+from .KNearestConcaveHull import KNearestConcaveHull
 from .LinesToPolygons import LinesToPolygons
 from .MinimumBoundingGeometry import MinimumBoundingGeometry
 from .NearestNeighbourAnalysis import NearestNeighbourAnalysis
-from .OffsetLine import OffsetLine
 from .Orthogonalize import Orthogonalize
 from .PointDistance import PointDistance
 from .PointsAlongGeometry import PointsAlongGeometry
@@ -118,7 +117,6 @@ from .RectanglesOvalsDiamondsFixed import RectanglesOvalsDiamondsFixed
 from .RectanglesOvalsDiamondsVariable import RectanglesOvalsDiamondsVariable
 from .RegularPoints import RegularPoints
 from .Relief import Relief
-from .ReverseLineDirection import ReverseLineDirection
 from .Ruggedness import Ruggedness
 from .SelectByAttribute import SelectByAttribute
 from .SelectByExpression import SelectByExpression
@@ -128,9 +126,6 @@ from .SetMValue import SetMValue
 from .SetRasterStyle import SetRasterStyle
 from .SetVectorStyle import SetVectorStyle
 from .SetZValue import SetZValue
-from .ShortestPathLayerToPoint import ShortestPathLayerToPoint
-from .ShortestPathPointToLayer import ShortestPathPointToLayer
-from .ShortestPathPointToPoint import ShortestPathPointToPoint
 from .SingleSidedBuffer import SingleSidedBuffer
 from .Slope import Slope
 from .SnapGeometries import SnapGeometriesToLayer
@@ -182,7 +177,6 @@ class QgisAlgorithmProvider(QgsProcessingProvider):
                 EliminateSelection(),
                 ExecuteSQL(),
                 ExportGeometryInfo(),
-                ExtendLines(),
                 ExtentFromLayer(),
                 ExtractSpecificVertices(),
                 FieldsCalculator(),
@@ -201,10 +195,10 @@ class QgisAlgorithmProvider(QgsProcessingProvider):
                 ImportIntoPostGIS(),
                 ImportIntoSpatialite(),
                 KeepNBiggestParts(),
+                KNearestConcaveHull(),
                 LinesToPolygons(),
                 MinimumBoundingGeometry(),
                 NearestNeighbourAnalysis(),
-                OffsetLine(),
                 Orthogonalize(),
                 PointDistance(),
                 PointsAlongGeometry(),
@@ -235,7 +229,6 @@ class QgisAlgorithmProvider(QgsProcessingProvider):
                 RectanglesOvalsDiamondsVariable(),
                 RegularPoints(),
                 Relief(),
-                ReverseLineDirection(),
                 Ruggedness(),
                 SelectByAttribute(),
                 SelectByExpression(),
@@ -245,9 +238,6 @@ class QgisAlgorithmProvider(QgsProcessingProvider):
                 SetRasterStyle(),
                 SetVectorStyle(),
                 SetZValue(),
-                ShortestPathLayerToPoint(),
-                ShortestPathPointToLayer(),
-                ShortestPathPointToPoint(),
                 SingleSidedBuffer(),
                 Slope(),
                 SnapGeometriesToLayer(),
@@ -297,6 +287,9 @@ class QgisAlgorithmProvider(QgsProcessingProvider):
         return algs
 
     def id(self):
+        return 'qgis'
+
+    def helpId(self):
         return 'qgis'
 
     def name(self):

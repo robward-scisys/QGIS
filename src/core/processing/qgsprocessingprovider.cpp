@@ -43,7 +43,7 @@ QString QgsProcessingProvider::svgIconPath() const
 
 QString QgsProcessingProvider::helpId() const
 {
-  return id();
+  return QString();
 }
 
 QString QgsProcessingProvider::longName() const
@@ -100,6 +100,11 @@ bool QgsProcessingProvider::addAlgorithm( QgsProcessingAlgorithm *algorithm )
 QStringList QgsProcessingProvider::supportedOutputVectorLayerExtensions() const
 {
   return QgsVectorFileWriter::supportedFormatExtensions();
+}
+
+QStringList QgsProcessingProvider::supportedOutputTableExtensions() const
+{
+  return supportedOutputVectorLayerExtensions();
 }
 
 QString QgsProcessingProvider::defaultVectorFileExtension( bool hasGeometry ) const

@@ -100,13 +100,21 @@ QgsRendererCategory QgsCategorizedSymbolRendererModel::category( const QModelInd
 
 Qt::ItemFlags QgsCategorizedSymbolRendererModel::flags( const QModelIndex &index ) const
 {
-  if ( !index.isValid() )
+  if ( !index.isValid() || !mRenderer )
   {
     return Qt::ItemIsDropEnabled;
   }
 
   Qt::ItemFlags flags = Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled | Qt::ItemIsUserCheckable;
-  if ( index.column() == 1 || index.column() == 2 )
+  if ( index.column() == 1 )
+  {
+    const QgsRendererCategory category = mRenderer->categories().value( index.row() );
+    if ( category.value().type() != QVariant::List )
+    {
+      flags |= Qt::ItemIsEditable;
+    }
+  }
+  else if ( index.column() == 2 )
   {
     flags |= Qt::ItemIsEditable;
   }
@@ -125,40 +133,116 @@ QVariant QgsCategorizedSymbolRendererModel::data( const QModelIndex &index, int 
 
   const QgsRendererCategory category = mRenderer->categories().value( index.row() );
 
-  if ( role == Qt::CheckStateRole && index.column() == 0 )
+  switch ( role )
   {
-    return category.renderState() ? Qt::Checked : Qt::Unchecked;
-  }
-  else if ( role == Qt::DisplayRole || role == Qt::ToolTipRole )
-  {
-    switch ( index.column() )
+    case Qt::CheckStateRole:
     {
-      case 1:
-        return category.value().toString();
-      case 2:
-        return category.label();
-      default:
-        return QVariant();
+      if ( index.column() == 0 )
+      {
+        return category.renderState() ? Qt::Checked : Qt::Unchecked;
+      }
+      break;
     }
-  }
-  else if ( role == Qt::DecorationRole && index.column() == 0 && category.symbol() )
-  {
-    return QgsSymbolLayerUtils::symbolPreviewIcon( category.symbol(), QSize( 16, 16 ) );
-  }
-  else if ( role == Qt::TextAlignmentRole )
-  {
-    return ( index.column() == 0 ) ? Qt::AlignHCenter : Qt::AlignLeft;
-  }
-  else if ( role == Qt::EditRole )
-  {
-    switch ( index.column() )
+
+    case Qt::DisplayRole:
+    case Qt::ToolTipRole:
     {
-      case 1:
-        return category.value();
-      case 2:
-        return category.label();
-      default:
-        return QVariant();
+      switch ( index.column() )
+      {
+        case 1:
+        {
+          if ( category.value().type() == QVariant::List )
+          {
+            QStringList res;
+            const QVariantList list = category.value().toList();
+            res.reserve( list.size() );
+            for ( const QVariant &v : list )
+              res << v.toString();
+
+            if ( role == Qt::DisplayRole )
+              return res.join( ';' );
+            else // tooltip
+              return res.join( '\n' );
+          }
+          else if ( !category.value().isValid() || category.value().isNull() || category.value().toString().isEmpty() )
+          {
+            return tr( "all other values" );
+          }
+          else
+          {
+            return category.value().toString();
+          }
+        }
+        case 2:
+          return category.label();
+      }
+      break;
+    }
+
+    case Qt::FontRole:
+    {
+      if ( index.column() == 1 && category.value().type() != QVariant::List && ( !category.value().isValid() || category.value().isNull() || category.value().toString().isEmpty() ) )
+      {
+        QFont italicFont;
+        italicFont.setItalic( true );
+        return italicFont;
+      }
+      return QVariant();
+    }
+
+    case Qt::DecorationRole:
+    {
+      if ( index.column() == 0 && category.symbol() )
+      {
+        return QgsSymbolLayerUtils::symbolPreviewIcon( category.symbol(), QSize( 16, 16 ) );
+      }
+      break;
+    }
+
+    case Qt::ForegroundRole:
+    {
+      QBrush brush( qApp->palette().color( QPalette::Text ), Qt::SolidPattern );
+      if ( index.column() == 1 && ( category.value().type() == QVariant::List
+                                    || !category.value().isValid() || category.value().isNull() || category.value().toString().isEmpty() ) )
+      {
+        QColor fadedTextColor = brush.color();
+        fadedTextColor.setAlpha( 128 );
+        brush.setColor( fadedTextColor );
+      }
+      return brush;
+    }
+
+    case Qt::TextAlignmentRole:
+    {
+      return ( index.column() == 0 ) ? Qt::AlignHCenter : Qt::AlignLeft;
+    }
+
+    case Qt::EditRole:
+    {
+      switch ( index.column() )
+      {
+        case 1:
+        {
+          if ( category.value().type() == QVariant::List )
+          {
+            QStringList res;
+            const QVariantList list = category.value().toList();
+            res.reserve( list.size() );
+            for ( const QVariant &v : list )
+              res << v.toString();
+
+            return res.join( ';' );
+          }
+          else
+          {
+            return category.value();
+          }
+        }
+
+        case 2:
+          return category.label();
+      }
+      break;
     }
   }
 
@@ -194,6 +278,20 @@ bool QgsCategorizedSymbolRendererModel::setData( const QModelIndex &index, const
         case QVariant::Double:
           val = value.toDouble();
           break;
+        case QVariant::List:
+        {
+          const QStringList parts = value.toString().split( ';' );
+          QVariantList list;
+          list.reserve( parts.count() );
+          for ( const QString &p : parts )
+            list << p;
+
+          if ( list.count() == 1 )
+            val = list.at( 0 );
+          else
+            val = list;
+          break;
+        }
         default:
           val = value.toString();
           break;
@@ -392,7 +490,7 @@ QgsRendererWidget *QgsCategorizedSymbolRendererWidget::create( QgsVectorLayer *l
 
 QgsCategorizedSymbolRendererWidget::QgsCategorizedSymbolRendererWidget( QgsVectorLayer *layer, QgsStyle *style, QgsFeatureRenderer *renderer )
   : QgsRendererWidget( layer, style )
-
+  , mContextMenu( new QMenu( this ) )
 {
 
   // try to recognize the previous renderer
@@ -419,7 +517,7 @@ QgsCategorizedSymbolRendererWidget::QgsCategorizedSymbolRendererWidget( QgsVecto
   btnColorRamp->setShowRandomColorRamp( true );
 
   // set project default color ramp
-  QString defaultColorRamp = QgsProject::instance()->readEntry( QStringLiteral( "DefaultStyles" ), QStringLiteral( "/ColorRamp" ), QLatin1String( "" ) );
+  QString defaultColorRamp = QgsProject::instance()->readEntry( QStringLiteral( "DefaultStyles" ), QStringLiteral( "/ColorRamp" ), QString() );
   if ( !defaultColorRamp.isEmpty() )
   {
     btnColorRamp->setColorRampFromName( defaultColorRamp );
@@ -450,7 +548,7 @@ QgsCategorizedSymbolRendererWidget::QgsCategorizedSymbolRendererWidget( QgsVecto
   connect( mExpressionWidget, static_cast < void ( QgsFieldExpressionWidget::* )( const QString & ) >( &QgsFieldExpressionWidget::fieldChanged ), this, &QgsCategorizedSymbolRendererWidget::categoryColumnChanged );
 
   connect( viewCategories, &QAbstractItemView::doubleClicked, this, &QgsCategorizedSymbolRendererWidget::categoriesDoubleClicked );
-  connect( viewCategories, &QTreeView::customContextMenuRequested, this, &QgsCategorizedSymbolRendererWidget::contextMenuViewCategories );
+  connect( viewCategories, &QTreeView::customContextMenuRequested, this, &QgsCategorizedSymbolRendererWidget::showContextMenu );
 
   connect( btnChangeCategorizedSymbol, &QAbstractButton::clicked, this, &QgsCategorizedSymbolRendererWidget::changeCategorizedSymbol );
   connect( btnAddCategories, &QAbstractButton::clicked, this, &QgsCategorizedSymbolRendererWidget::addCategories );
@@ -476,6 +574,11 @@ QgsCategorizedSymbolRendererWidget::QgsCategorizedSymbolRendererWidget( QgsVecto
   btnAdvanced->setMenu( advMenu );
 
   mExpressionWidget->registerExpressionContextGenerator( this );
+
+  mMergeCategoriesAction = new QAction( tr( "Merge Categories" ), this );
+  connect( mMergeCategoriesAction, &QAction::triggered, this, &QgsCategorizedSymbolRendererWidget::mergeSelectedCategories );
+  mUnmergeCategoriesAction = new QAction( tr( "Unmerge Categories" ), this );
+  connect( mUnmergeCategoriesAction, &QAction::triggered, this, &QgsCategorizedSymbolRendererWidget::unmergeSelectedCategories );
 }
 
 QgsCategorizedSymbolRendererWidget::~QgsCategorizedSymbolRendererWidget()
@@ -635,34 +738,12 @@ void QgsCategorizedSymbolRendererWidget::changeCategorySymbol()
   }
 }
 
-static void _createCategories( QgsCategoryList &cats, QList<QVariant> &values, QgsSymbol *symbol )
-{
-  // sort the categories first
-  QgsSymbolLayerUtils::sortVariantList( values, Qt::AscendingOrder );
-
-  int num = values.count();
-
-  for ( int i = 0; i < num; i++ )
-  {
-    QVariant value = values[i];
-    QgsSymbol *newSymbol = symbol->clone();
-    if ( ! value.isNull() )
-    {
-      cats.append( QgsRendererCategory( value, newSymbol, value.toString(), true ) );
-    }
-  }
-
-  // add null (default) value
-  QgsSymbol *newSymbol = symbol->clone();
-  cats.append( QgsRendererCategory( QVariant( "" ), newSymbol, QString(), true ) );
-}
-
 
 void QgsCategorizedSymbolRendererWidget::addCategories()
 {
   QString attrName = mExpressionWidget->currentField();
   int idx = mLayer->fields().lookupField( attrName );
-  QList<QVariant> unique_vals;
+  QList<QVariant> uniqueValues;
   if ( idx == -1 )
   {
     // Lets assume it's an expression
@@ -680,21 +761,21 @@ void QgsCategorizedSymbolRendererWidget::addCategories()
     {
       context.setFeature( feature );
       QVariant value = expression->evaluate( &context );
-      if ( unique_vals.contains( value ) )
+      if ( uniqueValues.contains( value ) )
         continue;
-      unique_vals << value;
+      uniqueValues << value;
     }
   }
   else
   {
-    unique_vals = mLayer->uniqueValues( idx ).toList();
+    uniqueValues = mLayer->uniqueValues( idx ).toList();
   }
 
   // ask to abort if too many classes
-  if ( unique_vals.size() >= 1000 )
+  if ( uniqueValues.size() >= 1000 )
   {
     int res = QMessageBox::warning( nullptr, tr( "Classify Categories" ),
-                                    tr( "High number of classes. Classification would yield %1 entries which might not be expected. Continue?" ).arg( unique_vals.size() ),
+                                    tr( "High number of classes. Classification would yield %1 entries which might not be expected. Continue?" ).arg( uniqueValues.size() ),
                                     QMessageBox::Ok | QMessageBox::Cancel,
                                     QMessageBox::Cancel );
     if ( res == QMessageBox::Cancel )
@@ -709,8 +790,7 @@ void QgsCategorizedSymbolRendererWidget::addCategories()
     return;
 #endif
 
-  QgsCategoryList cats;
-  _createCategories( cats, unique_vals, mCategorizedSymbol.get() );
+  QgsCategoryList cats = QgsCategorizedSymbolRenderer::createCategories( uniqueValues, mCategorizedSymbol.get(), mLayer, attrName );
   bool deleteExisting = false;
 
   if ( !mOldClassificationAttribute.isEmpty() &&
@@ -743,11 +823,28 @@ void QgsCategorizedSymbolRendererWidget::addCategories()
       QVariant value = cats.at( i ).value();
       for ( int j = 0; j < prevCats.size() && !contains; ++j )
       {
-        if ( prevCats.at( j ).value() == value )
+        const QVariant prevCatValue = prevCats.at( j ).value();
+        if ( prevCatValue.type() == QVariant::List )
         {
-          contains = true;
-          break;
+          const QVariantList list = prevCatValue.toList();
+          for ( const QVariant &v : list )
+          {
+            if ( v == value )
+            {
+              contains = true;
+              break;
+            }
+          }
         }
+        else
+        {
+          if ( prevCats.at( j ).value() == value )
+          {
+            contains = true;
+          }
+        }
+        if ( contains )
+          break;
       }
 
       if ( !contains )
@@ -921,20 +1018,14 @@ int QgsCategorizedSymbolRendererWidget::matchToSymbols( QgsStyle *style )
   if ( !mLayer || !style )
     return 0;
 
-  int matched = 0;
-  for ( int catIdx = 0; catIdx < mRenderer->categories().count(); ++catIdx )
-  {
-    QString val = mRenderer->categories().at( catIdx ).value().toString();
-    std::unique_ptr< QgsSymbol > symbol( style->symbol( val ) );
-    if ( symbol &&
-         ( ( symbol->type() == QgsSymbol::Marker && mLayer->geometryType() == QgsWkbTypes::PointGeometry )
-           || ( symbol->type() == QgsSymbol::Line && mLayer->geometryType() == QgsWkbTypes::LineGeometry )
-           || ( symbol->type() == QgsSymbol::Fill && mLayer->geometryType() == QgsWkbTypes::PolygonGeometry ) ) )
-    {
-      matched++;
-      mRenderer->updateCategorySymbol( catIdx, symbol.release() );
-    }
-  }
+  const QgsSymbol::SymbolType type = mLayer->geometryType() == QgsWkbTypes::PointGeometry ? QgsSymbol::Marker
+                                     : mLayer->geometryType() == QgsWkbTypes::LineGeometry ? QgsSymbol::Line
+                                     : QgsSymbol::Fill;
+
+  QVariantList unmatchedCategories;
+  QStringList unmatchedSymbols;
+  const int matched = mRenderer->matchToSymbols( style, type, unmatchedCategories, unmatchedSymbols );
+
   mModel->updateSymbology();
   return matched;
 }
@@ -945,7 +1036,7 @@ void QgsCategorizedSymbolRendererWidget::matchToSymbolsFromXml()
   QString openFileDir = settings.value( QStringLiteral( "UI/lastMatchToSymbolsDir" ), QDir::homePath() ).toString();
 
   QString fileName = QFileDialog::getOpenFileName( this, tr( "Match to Symbols from File" ), openFileDir,
-                     tr( "XML files (*.xml *XML)" ) );
+                     tr( "XML files (*.xml *.XML)" ) );
   if ( fileName.isEmpty() )
   {
     return;
@@ -1089,4 +1180,111 @@ void QgsCategorizedSymbolRendererWidget::dataDefinedSizeLegend()
     } );
     openPanel( panel );  // takes ownership of the panel
   }
+}
+
+void QgsCategorizedSymbolRendererWidget::mergeSelectedCategories()
+{
+  const QgsCategoryList &categories = mRenderer->categories();
+
+  QList<int> selectedCategoryIndexes = selectedCategories();
+  QList< int > categoryIndexes;
+
+  // filter out "" entry
+  for ( int i : selectedCategoryIndexes )
+  {
+    QVariant v = categories.at( i ).value();
+
+    if ( !v.isValid() || v == "" )
+    {
+      continue;
+    }
+
+    categoryIndexes.append( i );
+  }
+
+  if ( categoryIndexes.count() < 2 )
+    return;
+
+  QStringList labels;
+  QVariantList values;
+  values.reserve( categoryIndexes.count() );
+  labels.reserve( categoryIndexes.count() );
+  for ( int i : categoryIndexes )
+  {
+    QVariant v = categories.at( i ).value();
+
+    if ( v.type() == QVariant::List )
+    {
+      values.append( v.toList() );
+    }
+    else
+      values << v;
+
+    labels << categories.at( i ).label();
+  }
+
+  // modify first category (basically we "merge up" into the first selected category)
+  mRenderer->updateCategoryLabel( categoryIndexes.at( 0 ), labels.join( ',' ) );
+  mRenderer->updateCategoryValue( categoryIndexes.at( 0 ), values );
+
+  categoryIndexes.pop_front();
+  mModel->deleteRows( categoryIndexes );
+
+  emit widgetChanged();
+}
+
+void QgsCategorizedSymbolRendererWidget::unmergeSelectedCategories()
+{
+  const QList<int> categoryIndexes = selectedCategories();
+  if ( categoryIndexes.isEmpty() )
+    return;
+
+  const QgsCategoryList &categories = mRenderer->categories();
+  for ( int i : categoryIndexes )
+  {
+    const QVariant v = categories.at( i ).value();
+    if ( v.type() != QVariant::List )
+      continue;
+
+    const QVariantList list = v.toList();
+    for ( int j = 1; j < list.count(); ++j )
+    {
+      mModel->addCategory( QgsRendererCategory( list.at( j ), categories.at( i ).symbol()->clone(), list.at( j ).toString(), categories.at( i ).renderState() ) );
+    }
+    mRenderer->updateCategoryValue( i, list.at( 0 ) );
+    mRenderer->updateCategoryLabel( i, list.at( 0 ).toString() );
+  }
+
+  emit widgetChanged();
+}
+
+void QgsCategorizedSymbolRendererWidget::showContextMenu( QPoint )
+{
+  mContextMenu->clear();
+  const QList< QAction * > actions = contextMenu->actions();
+  for ( QAction *act : actions )
+  {
+    mContextMenu->addAction( act );
+  }
+
+  mContextMenu->addSeparator();
+
+  if ( viewCategories->selectionModel()->selectedRows().count() > 1 )
+  {
+    mContextMenu->addAction( mMergeCategoriesAction );
+  }
+  if ( viewCategories->selectionModel()->selectedRows().count() == 1 )
+  {
+    const QList<int> categoryIndexes = selectedCategories();
+    const QgsCategoryList &categories = mRenderer->categories();
+    const QVariant v = categories.at( categoryIndexes.at( 0 ) ).value();
+    if ( v.type() == QVariant::List )
+      mContextMenu->addAction( mUnmergeCategoriesAction );
+  }
+  else if ( viewCategories->selectionModel()->selectedRows().count() > 1 )
+  {
+    mContextMenu->addAction( mUnmergeCategoriesAction );
+  }
+
+  mContextMenu->exec( QCursor::pos() );
 }

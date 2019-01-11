@@ -12,6 +12,7 @@ INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/src/core/metadata
   ${CMAKE_SOURCE_DIR}/src/core/raster
   ${CMAKE_SOURCE_DIR}/src/core/symbology
+  ${CMAKE_SOURCE_DIR}/src/core/validity
   ${CMAKE_SOURCE_DIR}/src/ui
   ${CMAKE_SOURCE_DIR}/src/gui
   ${CMAKE_SOURCE_DIR}/src/gui/editorwidgets
@@ -92,6 +93,8 @@ ENDMACRO (ADD_QGIS_TEST)
 IF (WITH_BINDINGS)
 ADD_QGIS_TEST(apppythontest testqgisapppython.cpp)
 ENDIF ()
+ADD_QGIS_TEST(qgisapp testqgisapp.cpp)
+ADD_QGIS_TEST(appbrowserproviders testqgsappbrowserproviders.cpp)
 ADD_QGIS_TEST(qgisappclipboard testqgisappclipboard.cpp)
 ADD_QGIS_TEST(attributetabletest testqgsattributetable.cpp)
 ADD_QGIS_TEST(applocatorfilters testqgsapplocatorfilters.cpp)
@@ -108,3 +111,7 @@ ADD_QGIS_TEST(maptoolregularpolygontest testqgsmaptoolregularpolygon.cpp)
 ADD_QGIS_TEST(measuretool testqgsmeasuretool.cpp)
 ADD_QGIS_TEST(vertextool testqgsvertextool.cpp)
 ADD_QGIS_TEST(vectorlayersaveasdialogtest testqgsvectorlayersaveasdialog.cpp)
+ADD_QGIS_TEST(maptoolreverselinetest testqgsmaptoolreverseline.cpp)
+ADD_QGIS_TEST(maptooltrimextendfeaturetest testqgsmaptooltrimextendfeature.cpp)
+ADD_QGIS_TEST(projectproperties testqgsprojectproperties.cpp)
+ADD_QGIS_TEST(layoutvaliditychecks testqgsapplayoutvaliditychecks.cpp)

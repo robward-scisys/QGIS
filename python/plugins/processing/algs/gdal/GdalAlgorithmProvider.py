@@ -60,6 +60,7 @@ from .pct2rgb import pct2rgb
 from .polygonize import polygonize
 from .proximity import proximity
 from .rasterize import rasterize
+from .rearrange_bands import rearrange_bands
 from .retile import retile
 from .rgb2pct import rgb2pct
 from .roughness import roughness
@@ -70,7 +71,7 @@ from .tpi import tpi
 from .tri import tri
 from .warp import warp
 
-# from .extractprojection import ExtractProjection
+from .extractprojection import ExtractProjection
 # from .rasterize_over import rasterize_over
 
 from .Buffer import Buffer
@@ -102,18 +103,12 @@ class GdalAlgorithmProvider(QgsProcessingProvider):
         ProcessingConfig.settingIcons[self.name()] = self.icon()
         ProcessingConfig.addSetting(Setting(self.name(), 'ACTIVATE_GDAL',
                                             self.tr('Activate'), True))
-        ProcessingConfig.addSetting(Setting(
-            self.name(),
-            GdalUtils.GDAL_HELP_PATH,
-            self.tr('Location of GDAL docs'),
-            GdalUtils.gdalHelpPath()))
         ProcessingConfig.readSettings()
         self.refreshAlgorithms()
         return True
 
     def unload(self):
         ProcessingConfig.removeSetting('ACTIVATE_GDAL')
-        ProcessingConfig.removeSetting(GdalUtils.GDAL_HELP_PATH)
 
     def isActive(self):
         return ProcessingConfig.getSetting('ACTIVATE_GDAL')
@@ -129,6 +124,9 @@ class GdalAlgorithmProvider(QgsProcessingProvider):
         return 'GDAL ({})'.format(version)
 
     def id(self):
+        return 'gdal'
+
+    def helpId(self):
         return 'gdal'
 
     def icon(self):
@@ -166,6 +164,7 @@ class GdalAlgorithmProvider(QgsProcessingProvider):
             polygonize(),
             proximity(),
             rasterize(),
+            rearrange_bands(),
             retile(),
             rgb2pct(),
             roughness(),
@@ -176,7 +175,7 @@ class GdalAlgorithmProvider(QgsProcessingProvider):
             tri(),
             warp(),
             # rasterize(),
-            # ExtractProjection(),
+            ExtractProjection(),
             # rasterize_over(),
             # ----- OGR tools -----
             Buffer(),

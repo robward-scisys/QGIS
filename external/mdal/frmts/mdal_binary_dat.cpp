@@ -71,9 +71,34 @@ static bool readIStat( std::ifstream &in, int sflg, char *flag )
   return false;
 }
 
-MDAL::LoaderBinaryDat::LoaderBinaryDat( const std::string &datFile ):
-  mDatFile( datFile )
+MDAL::DriverBinaryDat::DriverBinaryDat():
+  Driver( "BINARY_DAT",
+          "Binary DAT",
+          "*.dat",
+          DriverType::CanReadOnlyDatasets
+        )
 {
+}
+
+MDAL::DriverBinaryDat *MDAL::DriverBinaryDat::create()
+{
+  return new DriverBinaryDat();
+}
+
+MDAL::DriverBinaryDat::~DriverBinaryDat() = default;
+
+bool MDAL::DriverBinaryDat::canRead( const std::string &uri )
+{
+  std::ifstream in( uri, std::ifstream::in | std::ifstream::binary );
+  int version;
+
+  if ( read( in, reinterpret_cast< char * >( &version ), 4 ) )
+    return false;
+
+  if ( version != CT_VERSION ) // Version should be 3000
+    return false;
+
+  return true;
 }
 
 /**
@@ -86,8 +111,9 @@ MDAL::LoaderBinaryDat::LoaderBinaryDat( const std::string &datFile ):
  * In MDAL we convert one output to one MDAL dataset;
  *
  */
-void MDAL::LoaderBinaryDat::load( MDAL::Mesh *mesh, MDAL_Status *status )
+void MDAL::DriverBinaryDat::load( const std::string &datFile, MDAL::Mesh *mesh, MDAL_Status *status )
 {
+  mDatFile = datFile;
   if ( status ) *status = MDAL_Status::None;
 
   if ( !MDAL::fileExists( mDatFile ) )
@@ -103,14 +129,14 @@ void MDAL::LoaderBinaryDat::load( MDAL::Mesh *mesh, MDAL_Status *status )
   if ( !in )
     EXIT_WITH_ERROR( MDAL_Status::Err_FileNotFound ); // Couldn't open the file
 
-  size_t vertexCount = mesh->vertices.size();
-  size_t elemCount = mesh->faces.size();
+  size_t vertexCount = mesh->verticesCount();
+  size_t elemCount = mesh->facesCount();
 
   int card = 0;
   int version;
   int objecttype;
   int sflt;
-  int sflg;
+  int sflg = 0;
   int vectype;
   int objid;
   int numdata;
@@ -125,9 +151,19 @@ void MDAL::LoaderBinaryDat::load( MDAL::Mesh *mesh, MDAL_Status *status )
   if ( version != CT_VERSION ) // Version should be 3000
     EXIT_WITH_ERROR( MDAL_Status::Err_UnknownFormat );
 
-  std::shared_ptr<DatasetGroup> group( new DatasetGroup() ); // DAT datasets
-  group->uri = mDatFile;
-  group->isOnVertices = true;
+  std::shared_ptr<DatasetGroup> group = std::make_shared< DatasetGroup >(
+                                          mesh,
+                                          mDatFile
+                                        ); // DAT datasets
+  group->setIsOnVertices( true );
+
+  // in TUFLOW results there could be also a special timestep (99999) with maximums
+  // we will put it into a separate dataset
+  std::shared_ptr<DatasetGroup> groupMax = std::make_shared< DatasetGroup >(
+        mesh,
+        mDatFile
+      );
+  groupMax->setIsOnVertices( true );
 
   while ( card != CT_ENDDS )
   {
@@ -160,11 +196,13 @@ void MDAL::LoaderBinaryDat::load( MDAL::Mesh *mesh, MDAL_Status *status )
         break;
 
       case CT_BEGSCL:
-        group->isScalar = true;
+        group->setIsScalar( true );
+        groupMax->setIsScalar( true );
         break;
 
       case CT_BEGVEC:
-        group->isScalar = false;
+        group->setIsScalar( false );
+        groupMax->setIsScalar( false );
         break;
 
       case CT_VECTYPE:
@@ -202,6 +240,7 @@ void MDAL::LoaderBinaryDat::load( MDAL::Mesh *mesh, MDAL_Status *status )
         if ( name[39] != 0 )
           name[39] = 0;
         group->setName( trim( std::string( name ) ) );
+        groupMax->setName( group->name() + "/Maximums" );
         break;
 
       case CT_TS:
@@ -213,7 +252,7 @@ void MDAL::LoaderBinaryDat::load( MDAL::Mesh *mesh, MDAL_Status *status )
           EXIT_WITH_ERROR( MDAL_Status::Err_UnknownFormat );
 
         double t = static_cast<double>( time );
-        if ( readVertexTimestep( mesh, group, t, istat, sflg, in ) )
+        if ( readVertexTimestep( mesh, group, groupMax, t, istat, sflg, in ) )
           EXIT_WITH_ERROR( MDAL_Status::Err_UnknownFormat );
 
         break;
@@ -222,26 +261,33 @@ void MDAL::LoaderBinaryDat::load( MDAL::Mesh *mesh, MDAL_Status *status )
 
   if ( !group || group->datasets.size() == 0 )
     EXIT_WITH_ERROR( MDAL_Status::Err_UnknownFormat );
-
+  group->setStatistics( MDAL::calculateStatistics( group ) );
   mesh->datasetGroups.push_back( group );
+
+  if ( groupMax && groupMax->datasets.size() > 0 )
+  {
+    groupMax->setStatistics( MDAL::calculateStatistics( groupMax ) );
+    mesh->datasetGroups.push_back( groupMax );
+  }
 }
 
-bool MDAL::LoaderBinaryDat::readVertexTimestep(
-  const MDAL::Mesh *mesh,
-  std::shared_ptr<DatasetGroup> group,
-  double time,
-  bool hasStatus,
-  int sflg,
-  std::ifstream &in )
+bool MDAL::DriverBinaryDat::readVertexTimestep( const MDAL::Mesh *mesh,
+    std::shared_ptr<DatasetGroup> group,
+    std::shared_ptr<DatasetGroup> groupMax,
+    double time,
+    bool hasStatus,
+    int sflg,
+    std::ifstream &in )
 {
-  size_t vertexCount = mesh->vertices.size();
-  size_t faceCount = mesh->faces.size();
+  assert( group && groupMax && ( group->isScalar() == groupMax->isScalar() ) );
+  bool isScalar = group->isScalar();
 
-  std::shared_ptr<MDAL::Dataset> dataset( new MDAL::Dataset );
-  dataset->values.resize( vertexCount );
-  dataset->active.resize( faceCount );
-  dataset->parent = group.get();
+  size_t vertexCount = mesh->verticesCount();
+  size_t faceCount = mesh->facesCount();
 
+  std::shared_ptr<MDAL::MemoryDataset> dataset = std::make_shared< MDAL::MemoryDataset >( group.get() );
+
+  int *activeFlags = dataset->active();
   bool active = true;
   for ( size_t i = 0; i < faceCount; ++i )
   {
@@ -251,12 +297,13 @@ bool MDAL::LoaderBinaryDat::readVertexTimestep(
         return true; //error
 
     }
-    dataset->active[i] = active;
+    activeFlags[i] = active;
   }
 
+  double *values = dataset->values();
   for ( size_t i = 0; i < vertexCount; ++i )
   {
-    if ( !group->isScalar )
+    if ( !isScalar )
     {
       float x, y;
 
@@ -265,8 +312,8 @@ bool MDAL::LoaderBinaryDat::readVertexTimestep(
       if ( read( in, reinterpret_cast< char * >( &y ), 4 ) )
         return true; //error
 
-      dataset->values[i].x = static_cast< double >( x );
-      dataset->values[i].y = static_cast< double >( y );
+      values[2 * i] = static_cast< double >( x );
+      values[2 * i + 1] = static_cast< double >( y );
     }
     else
     {
@@ -275,18 +322,20 @@ bool MDAL::LoaderBinaryDat::readVertexTimestep(
       if ( read( in, reinterpret_cast< char * >( &scalar ), 4 ) )
         return true; //error
 
-      dataset->values[i].x = static_cast< double >( scalar );
+      values[i] = static_cast< double >( scalar );
     }
   }
 
   if ( MDAL::equals( time, 99999.0 ) ) // Special TUFLOW dataset with maximus
   {
-    dataset->time = time;
-    group->maximumDataset = dataset;
+    dataset->setTime( time );
+    dataset->setStatistics( MDAL::calculateStatistics( dataset ) );
+    groupMax->datasets.push_back( dataset );
   }
   else
   {
-    dataset->time = time / 3600.0; // TODO read TIMEUNITS
+    dataset->setTime( time ); // TODO read TIMEUNITS
+    dataset->setStatistics( MDAL::calculateStatistics( dataset ) );
     group->datasets.push_back( dataset );
   }
   return false; //OK

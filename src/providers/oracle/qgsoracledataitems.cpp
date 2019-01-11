@@ -22,6 +22,7 @@
 #include "qgsapplication.h"
 #include "qgsmessageoutput.h"
 #include "qgsvectorlayer.h"
+#include "qgsproxyprogresstask.h"
 
 #include <QMessageBox>
 #include <QProgressDialog>
@@ -93,6 +94,8 @@ QVector<QgsDataItem *> QgsOracleConnectionItem::createChildren()
         QgsOracleConn::restrictToSchema( mName ),
         /* useEstimatedMetadata */ true,
         QgsOracleConn::allowGeometrylessTables( mName ) );
+    mColumnTypeTask = new QgsProxyProgressTask( tr( "Scanning tables for %1" ).arg( mName ) );
+    QgsApplication::taskManager()->addTask( mColumnTypeTask );
 
     connect( mColumnTypeThread, &QgsOracleColumnTypeThread::setLayerType,
              this, &QgsOracleConnectionItem::setLayerType );
@@ -101,8 +104,11 @@ QVector<QgsDataItem *> QgsOracleConnectionItem::createChildren()
 
     if ( QgsOracleRootItem::sMainWindow )
     {
-      connect( mColumnTypeThread, SIGNAL( progress( int, int ) ),
-               QgsOracleRootItem::sMainWindow, SLOT( showProgress( int, int ) ) );
+      connect( mColumnTypeThread, &QgsOracleColumnTypeThread::progress,
+               mColumnTypeTask, [ = ]( int i, int n )
+      {
+        mColumnTypeTask->setProxyProgress( 100.0 * static_cast< double >( i ) / n );
+      } );
       connect( mColumnTypeThread, SIGNAL( progressMessage( QString ) ),
                QgsOracleRootItem::sMainWindow, SLOT( showStatusMessage( QString ) ) );
     }
@@ -127,6 +133,9 @@ void QgsOracleConnectionItem::threadStarted()
 
 void QgsOracleConnectionItem::threadFinished()
 {
+  mColumnTypeTask->finalize( true );
+  mColumnTypeTask = nullptr;
+
   QgsDebugMsgLevel( QStringLiteral( "Entering." ), 3 );
   setAllAsPopulated();
 }
@@ -327,12 +336,12 @@ QList<QAction *> QgsOracleLayerItem::actions( QWidget *parent )
   return lst;
 }
 
-void QgsOracleLayerItem::deleteLayer()
+bool QgsOracleLayerItem::deleteLayer()
 {
   if ( QMessageBox::question( nullptr, QObject::tr( "Delete Table" ),
                               QObject::tr( "Are you sure you want to delete %1.%2?" ).arg( mLayerProperty.ownerName, mLayerProperty.tableName ),
                               QMessageBox::Yes | QMessageBox::No, QMessageBox::No ) != QMessageBox::Yes )
-    return;
+    return true;
 
   QString errCause;
   bool res = ::deleteLayer( mUri, errCause );
@@ -345,6 +354,8 @@ void QgsOracleLayerItem::deleteLayer()
     QMessageBox::information( nullptr, tr( "Delete Table" ), tr( "Table deleted successfully." ) );
     deleteLater();
   }
+
+  return res;
 }
 
 QString QgsOracleLayerItem::createUri()
@@ -364,7 +375,7 @@ QString QgsOracleLayerItem::createUri()
   uri.setWkbType( mLayerProperty.types.at( 0 ) );
   if ( mLayerProperty.isView && mLayerProperty.pkCols.size() > 0 )
     uri.setKeyColumn( mLayerProperty.pkCols[0] );
-  QgsDebugMsgLevel( QString( QStringLiteral( "layer uri: %1" ) ).arg( uri.uri() ), 3 );
+  QgsDebugMsgLevel( QStringLiteral( "layer uri: %1" ).arg( uri.uri() ), 3 );
   return uri.uri();
 }
 

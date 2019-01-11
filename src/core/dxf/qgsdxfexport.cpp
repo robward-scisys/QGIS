@@ -41,6 +41,7 @@
 #include "qgsunittypes.h"
 #include "qgstextlabelfeature.h"
 #include "qgslogger.h"
+#include "qgsmaplayerstyle.h"
 #include "qgsmaplayerstylemanager.h"
 
 #include "qgswkbtypes.h"
@@ -849,7 +850,7 @@ void QgsDxfExport::writeTables()
   writeGroup( 71, 0 );
   writeGroup( 42, 5.0 );
   writeGroup( 3, QStringLiteral( "romans.shx" ) );
-  writeGroup( 4, QLatin1String( "" ) );
+  writeGroup( 4, QString() );
 
   writeGroup( 0, QStringLiteral( "ENDTAB" ) );
 
@@ -874,7 +875,7 @@ void QgsDxfExport::writeBlocks()
     writeGroup( 70, 0 );
     writeGroup( 0, QgsPoint( QgsWkbTypes::PointZ ) );
     writeGroup( 3, block );
-    writeGroup( 1, QLatin1String( "" ) );
+    writeGroup( 1, QString() );
     writeGroup( 0, QStringLiteral( "ENDBLK" ) );
     writeHandle();
     writeGroup( 100, QStringLiteral( "AcDbEntity" ) );
@@ -927,7 +928,7 @@ void QgsDxfExport::writeBlocks()
     // size *= mapUnitScaleFactor( mSymbologyScale, ml->sizeUnit(), mMapUnits );
     writeGroup( 0, QgsPoint( QgsWkbTypes::PointZ ) );
     writeGroup( 3, block );
-    writeGroup( 1, QLatin1String( "" ) );
+    writeGroup( 1, QString() );
 
     // maplayer 0 -> block receives layer from INSERT statement
     ml->writeDxf( *this, mapUnitScaleFactor( mSymbologyScale, ml->sizeUnit(), mMapUnits, ctx.renderContext().mapToPixel().mapUnitsPerPixel() ), QStringLiteral( "0" ), ctx );
@@ -986,12 +987,12 @@ void QgsDxfExport::writeEntities()
     QgsMapLayerStyleOverride styleOverride( vl );
     if ( mMapSettings.layerStyleOverrides().contains( vl->id() ) )
     {
-      QgsDebugMsg( QString( "%1: apply override style" ).arg( vl->id() ) );
+      QgsDebugMsg( QStringLiteral( "%1: apply override style" ).arg( vl->id() ) );
       styleOverride.setOverrideStyle( mMapSettings.layerStyleOverrides().value( vl->id() ) );
     }
     else
     {
-      QgsDebugMsg( QString( "%1: not override style" ).arg( vl->id() ) );
+      QgsDebugMsg( QStringLiteral( "%1: not override style" ).arg( vl->id() ) );
     }
 
     if ( !vl->renderer() )
@@ -1225,7 +1226,7 @@ void QgsDxfExport::writeEntitiesSymbolLevels( QgsVectorLayer *layer )
       QHash< QgsSymbol *, QList<QgsFeature> >::iterator levelIt = features.find( item.symbol() );
       if ( levelIt == features.end() )
       {
-        QgsDebugMsg( QString( "No feature found for symbol on %1 %2.%3" ).arg( layer->id() ).arg( l ).arg( i ) );
+        QgsDebugMsg( QStringLiteral( "No feature found for symbol on %1 %2.%3" ).arg( layer->id() ).arg( l ).arg( i ) );
         continue;
       }
 
@@ -3472,7 +3473,7 @@ void QgsDxfExport::writePolyline( const QgsPointSequence &line, const QString &l
   int n = line.size();
   if ( n == 0 )
   {
-    QgsDebugMsg( QString( "writePolyline: empty line layer=%1 lineStyleName=%2" ).arg( layer, lineStyleName ) );
+    QgsDebugMsg( QStringLiteral( "writePolyline: empty line layer=%1 lineStyleName=%2" ).arg( layer, lineStyleName ) );
     return;
   }
 
@@ -3481,7 +3482,7 @@ void QgsDxfExport::writePolyline( const QgsPointSequence &line, const QString &l
     --n;
   if ( n < 2 )
   {
-    QgsDebugMsg( QString( "writePolyline: line too short layer=%1 lineStyleName=%2" ).arg( layer, lineStyleName ) );
+    QgsDebugMsg( QStringLiteral( "writePolyline: line too short layer=%1 lineStyleName=%2" ).arg( layer, lineStyleName ) );
     return;
   }
 
@@ -3673,7 +3674,7 @@ void QgsDxfExport::writeMText( const QString &layer, const QString &text, const 
   if ( !mTextStream.codec()->canEncode( text ) )
   {
     // TODO return error
-    QgsDebugMsg( QString( "could not encode:%1" ).arg( text ) );
+    QgsDebugMsg( QStringLiteral( "could not encode:%1" ).arg( text ) );
     return;
   }
 
@@ -3782,7 +3783,7 @@ void QgsDxfExport::addFeature( QgsSymbolRenderContext &ctx, const QgsCoordinateT
         tempGeom = geom->segmentize();
         if ( !tempGeom )
           break;
-        FALLTHROUGH;
+        FALLTHROUGH
       case QgsWkbTypes::LineString:
         if ( !qgsDoubleNear( offset, 0.0 ) )
         {
@@ -3802,7 +3803,7 @@ void QgsDxfExport::addFeature( QgsSymbolRenderContext &ctx, const QgsCoordinateT
         tempGeom = geom->segmentize();
         if ( !tempGeom )
           break;
-        FALLTHROUGH;
+        FALLTHROUGH
       case QgsWkbTypes::MultiLineString:
       {
         if ( !qgsDoubleNear( offset, 0.0 ) )
@@ -3828,7 +3829,7 @@ void QgsDxfExport::addFeature( QgsSymbolRenderContext &ctx, const QgsCoordinateT
         tempGeom = geom->segmentize();
         if ( !tempGeom )
           break;
-        FALLTHROUGH;
+        FALLTHROUGH
       case QgsWkbTypes::Polygon:
       {
         if ( !qgsDoubleNear( offset, 0.0 ) )
@@ -3888,7 +3889,7 @@ void QgsDxfExport::addFeature( QgsSymbolRenderContext &ctx, const QgsCoordinateT
         tempGeom = tempGeom->segmentize();
         if ( !tempGeom )
           break;
-        FALLTHROUGH;
+        FALLTHROUGH
       case QgsWkbTypes::Polygon:
         writePolygon( tempGeom->coordinateSequence().at( 0 ), layer, QStringLiteral( "SOLID" ), brushColor );
         break;
@@ -3970,7 +3971,7 @@ int QgsDxfExport::color_distance( QRgb p1, int index )
   double greenDiff = qGreen( p1 ) - sDxfColors[index][1];
   double blueDiff = qBlue( p1 ) - sDxfColors[index][2];
 #if 0
-  QgsDebugMsg( QString( "color_distance( r:%1 g:%2 b:%3 <=> i:%4 r:%5 g:%6 b:%7 ) => %8" )
+  QgsDebugMsg( QStringLiteral( "color_distance( r:%1 g:%2 b:%3 <=> i:%4 r:%5 g:%6 b:%7 ) => %8" )
                .arg( qRed( p1 ) ).arg( qGreen( p1 ) ).arg( qBlue( p1 ) )
                .arg( index )
                .arg( mDxfColors[index][0] )
@@ -4182,7 +4183,7 @@ void QgsDxfExport::writeLinetype( const QString &styleName, const QVector<qreal>
   writeGroup( 100, QStringLiteral( "AcDbLinetypeTableRecord" ) );
   writeGroup( 2, styleName );
   writeGroup( 70, 64 ); // 0?
-  writeGroup( 3, QLatin1String( "" ) );
+  writeGroup( 3, QString() );
   writeGroup( 72, 65 );
   writeGroup( 73, pattern.size() );
   writeGroup( 40, length );
@@ -4418,8 +4419,8 @@ void QgsDxfExport::drawLabel( const QString &layerId, QgsRenderContext &context,
 
   //font
   QFont dFont = lf->definedFont();
-  QgsDebugMsgLevel( QString( "PAL font tmpLyr: %1, Style: %2" ).arg( tmpLyr.format().font().toString(), tmpLyr.format().font().styleName() ), 4 );
-  QgsDebugMsgLevel( QString( "PAL font definedFont: %1, Style: %2" ).arg( dFont.toString(), dFont.styleName() ), 4 );
+  QgsDebugMsgLevel( QStringLiteral( "PAL font tmpLyr: %1, Style: %2" ).arg( tmpLyr.format().font().toString(), tmpLyr.format().font().styleName() ), 4 );
+  QgsDebugMsgLevel( QStringLiteral( "PAL font definedFont: %1, Style: %2" ).arg( dFont.toString(), dFont.styleName() ), 4 );
 
   QgsTextFormat format = tmpLyr.format();
   format.setFont( dFont );

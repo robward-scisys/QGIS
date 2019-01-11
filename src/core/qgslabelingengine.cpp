@@ -25,7 +25,7 @@
 #include "problem.h"
 #include "qgsrendercontext.h"
 #include "qgsmaplayer.h"
-
+#include "qgssymbol.h"
 
 // helper function for checking for job cancelation within PAL
 static bool _palIsCanceled( void *ctx )
@@ -171,7 +171,7 @@ void QgsLabelingEngine::processProvider( QgsAbstractLabelProvider *provider, Qgs
     catch ( std::exception &e )
     {
       Q_UNUSED( e );
-      QgsDebugMsgLevel( QString( "Ignoring feature %1 due PAL exception:" ).arg( feature->id() ) + QString::fromLatin1( e.what() ), 4 );
+      QgsDebugMsgLevel( QStringLiteral( "Ignoring feature %1 due PAL exception:" ).arg( feature->id() ) + QString::fromLatin1( e.what() ), 4 );
       continue;
     }
   }
@@ -244,7 +244,33 @@ void QgsLabelingEngine::run( QgsRenderContext &context )
   QgsGeometry extentGeom = QgsGeometry::fromRect( mMapSettings.visibleExtent() );
   QPolygonF visiblePoly = mMapSettings.visiblePolygon();
   visiblePoly.append( visiblePoly.at( 0 ) ); //close polygon
-  QgsGeometry mapBoundaryGeom = QgsGeometry::fromQPolygonF( visiblePoly );
+
+  // get map label boundary geometry - if one hasn't been explicitly set, we use the whole of the map's visible polygon
+  QgsGeometry mapBoundaryGeom = !mMapSettings.labelBoundaryGeometry().isNull() ? mMapSettings.labelBoundaryGeometry() : QgsGeometry::fromQPolygonF( visiblePoly );
+
+  // label blocking regions work by "chopping away" those regions from the permissible labeling area
+  const QList< QgsLabelBlockingRegion > blockingRegions = mMapSettings.labelBlockingRegions();
+  for ( const QgsLabelBlockingRegion &region : blockingRegions )
+  {
+    mapBoundaryGeom = mapBoundaryGeom.difference( region.geometry );
+  }
+
+  if ( settings.flags() & QgsLabelingEngineSettings::DrawCandidates )
+  {
+    // draw map boundary
+    QgsFeature f;
+    f.setGeometry( mapBoundaryGeom );
+    QgsStringMap properties;
+    properties.insert( QStringLiteral( "style" ), QStringLiteral( "no" ) );
+    properties.insert( QStringLiteral( "style_border" ), QStringLiteral( "solid" ) );
+    properties.insert( QStringLiteral( "color_border" ), QStringLiteral( "#0000ff" ) );
+    properties.insert( QStringLiteral( "width_border" ), QStringLiteral( "0.3" ) );
+    properties.insert( QStringLiteral( "joinstyle" ), QStringLiteral( "miter" ) );
+    std::unique_ptr< QgsFillSymbol > boundarySymbol( QgsFillSymbol::createSimple( properties ) );
+    boundarySymbol->startRender( context );
+    boundarySymbol->renderFeature( f, context );
+    boundarySymbol->stopRender( context );
+  }
 
   if ( !qgsDoubleNear( mMapSettings.rotation(), 0.0 ) )
   {
@@ -312,7 +338,7 @@ void QgsLabelingEngine::run( QgsRenderContext &context )
   // find the solution
   QList<pal::LabelPosition *> labels = p.solveProblem( problem.get(), settings.testFlag( QgsLabelingEngineSettings::UseAllLabels ) );
 
-  QgsDebugMsgLevel( QString( "LABELING work:  %1 ms ... labels# %2" ).arg( t.elapsed() ).arg( labels.size() ), 4 );
+  QgsDebugMsgLevel( QStringLiteral( "LABELING work:  %1 ms ... labels# %2" ).arg( t.elapsed() ).arg( labels.size() ), 4 );
   t.restart();
 
   if ( context.renderingStopped() )
@@ -342,7 +368,7 @@ void QgsLabelingEngine::run( QgsRenderContext &context )
   // Reset composition mode for further drawing operations
   painter->setCompositionMode( QPainter::CompositionMode_SourceOver );
 
-  QgsDebugMsgLevel( QString( "LABELING draw:  %1 ms" ).arg( t.elapsed() ), 4 );
+  QgsDebugMsgLevel( QStringLiteral( "LABELING draw:  %1 ms" ).arg( t.elapsed() ), 4 );
 }
 
 QgsLabelingResults *QgsLabelingEngine::takeResults()

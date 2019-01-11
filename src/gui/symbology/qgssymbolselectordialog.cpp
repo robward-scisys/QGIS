@@ -34,6 +34,7 @@
 #include "qgsfeatureiterator.h"
 #include "qgsvectorlayer.h"
 #include "qgssvgcache.h"
+#include "qgsimagecache.h"
 
 #include <QColorDialog>
 #include <QPainter>
@@ -232,6 +233,9 @@ QgsSymbolSelectorWidget::QgsSymbolSelectorWidget( QgsSymbol *symbol, QgsStyle *s
   setupUi( this );
   this->layout()->setContentsMargins( 0, 0, 0, 0 );
 
+  layersTree->setMaximumHeight( static_cast< int >( Qgis::UI_SCALE_FACTOR * fontMetrics().height() * 7 ) );
+  layersTree->setMinimumHeight( layersTree->maximumHeight() );
+
   // setup icons
   btnAddLayer->setIcon( QIcon( QgsApplication::iconPath( "symbologyAdd.svg" ) ) );
   btnRemoveLayer->setIcon( QIcon( QgsApplication::iconPath( "symbologyRemove.svg" ) ) );
@@ -253,10 +257,15 @@ QgsSymbolSelectorWidget::QgsSymbolSelectorWidget( QgsSymbol *symbol, QgsStyle *s
   //get first feature from layer for previews
   if ( mVectorLayer )
   {
-    QgsFeatureIterator it = mVectorLayer->getFeatures( QgsFeatureRequest().setLimit( 1 ) );
+#if 0 // this is too expensive to do for many providers. TODO revisit when support for connection timeouts is complete across all providers
+    // short timeout for request - it doesn't really matter if we don't get the feature, and this call is blocking UI
+    QgsFeatureIterator it = mVectorLayer->getFeatures( QgsFeatureRequest().setLimit( 1 ).setConnectionTimeout( 100 ) );
     it.nextFeature( mPreviewFeature );
+#endif
     mPreviewExpressionContext.appendScopes( QgsExpressionContextUtils::globalProjectLayerScopes( mVectorLayer ) );
+#if 0
     mPreviewExpressionContext.setFeature( mPreviewFeature );
+#endif
   }
   else
   {
@@ -292,6 +301,16 @@ QgsSymbolSelectorWidget::QgsSymbolSelectorWidget( QgsSymbol *symbol, QgsStyle *s
     // have been generated using the temporary "downloading" svg. In this case
     // we require the preview to be regenerated to use the correct fetched
     // svg
+    symbolChanged();
+    updatePreview();
+  } );
+  connect( QgsApplication::imageCache(), &QgsImageCache::remoteImageFetched, this, [ = ]
+  {
+    // when a remote image has been fetched, update the widget's previews
+    // this is required if the symbol utilizes remote images, and the current previews
+    // have been generated using the temporary "downloading" image. In this case
+    // we require the preview to be regenerated to use the correct fetched
+    // image
     symbolChanged();
     updatePreview();
   } );
@@ -467,7 +486,9 @@ void QgsSymbolSelectorWidget::layerChanged()
   {
     mDataDefineRestorer.reset();
     // then it must be a symbol
+    Q_NOWARN_DEPRECATED_PUSH
     currentItem->symbol()->setLayer( mVectorLayer );
+    Q_NOWARN_DEPRECATED_POP
     // Now populate symbols of that type using the symbols list widget:
     QgsSymbolsListWidget *symbolsList = new QgsSymbolsListWidget( currentItem->symbol(), mStyle, mAdvancedMenu, this, mVectorLayer );
     symbolsList->setContext( mContext );

@@ -29,15 +29,11 @@
 
 #include <QFileInfo>
 #include "qgsrequesthandler.h"
-#include "qgsapplication.h"
 #include "qgsconfigcache.h"
 #include "qgscapabilitiescache.h"
-#include "qgsmapsettings.h"
-#include "qgsmessagelog.h"
 #include "qgsserviceregistry.h"
 #include "qgsserversettings.h"
 #include "qgsserverplugins.h"
-#include "qgsserverfilter.h"
 #include "qgsserverinterfaceimpl.h"
 #include "qgis_server.h"
 #include "qgsserverrequest.h"
@@ -106,7 +102,7 @@ class SERVER_EXPORT QgsServer
      * Returns the configuration file path.
      */
     static QString configPath( const QString &defaultConfigPath,
-                               const QMap<QString, QString> &parameters );
+                               const QString &configPath );
 
     /**
      * \brief QgsServer::printRequestParameters prints the request parameters

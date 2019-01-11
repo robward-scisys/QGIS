@@ -65,7 +65,7 @@ class PointsFromLines(QgisAlgorithm):
                                                             self.tr('Raster layer')))
         self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT_VECTOR,
                                                               self.tr('Vector layer'), [QgsProcessing.TypeVectorLine]))
-        self.addParameter(QgsProcessingParameterFeatureSink(self.OUTPUT, self.tr('Points from polygons'), QgsProcessing.TypeVectorPoint))
+        self.addParameter(QgsProcessingParameterFeatureSink(self.OUTPUT, self.tr('Points along lines'), QgsProcessing.TypeVectorPoint))
 
     def name(self):
         return 'generatepointspixelcentroidsalongline'
@@ -107,6 +107,10 @@ class PointsFromLines(QgisAlgorithm):
         for current, f in enumerate(features):
             if feedback.isCanceled():
                 break
+
+            if not f.hasGeometry():
+                continue
+
             geom = f.geometry()
             if geom.isMultipart():
                 lines = geom.asMultiPolyline()

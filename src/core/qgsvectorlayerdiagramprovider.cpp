@@ -78,8 +78,12 @@ QList<QgsLabelFeature *> QgsVectorLayerDiagramProvider::labelFeatures( QgsRender
   QgsFeatureRequest request;
   request.setFilterRect( layerExtent );
   request.setSubsetOfAttributes( attributeNames, mFields );
+  const QgsFeatureFilterProvider *featureFilterProvider = context.featureFilterProvider();
+  if ( featureFilterProvider )
+  {
+    featureFilterProvider->filterFeatures( qobject_cast<QgsVectorLayer *>( mLayer ), request );
+  }
   QgsFeatureIterator fit = mSource->getFeatures( request );
-
 
   QgsFeature fet;
   while ( fit.nextFeature( fet ) )
@@ -233,7 +237,7 @@ QgsLabelFeature *QgsVectorLayerDiagramProvider::registerDiagram( QgsFeature &fea
 
   geos::unique_ptr geosObstacleGeomClone;
   std::unique_ptr<QgsGeometry> scopedObstacleGeom;
-  if ( isObstacle && obstacleGeometry && QgsPalLabeling::geometryRequiresPreparation( obstacleGeometry, context, mSettings.coordinateTransform(), extentGeom ) )
+  if ( isObstacle && !obstacleGeometry.isNull() && QgsPalLabeling::geometryRequiresPreparation( obstacleGeometry, context, mSettings.coordinateTransform(), extentGeom ) )
   {
     QgsGeometry preparedObstacleGeom = QgsPalLabeling::prepareGeometry( obstacleGeometry, context, mSettings.coordinateTransform(), extentGeom );
     geosObstacleGeomClone = QgsGeos::asGeos( preparedObstacleGeom );

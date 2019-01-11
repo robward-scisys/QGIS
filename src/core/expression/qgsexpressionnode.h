@@ -66,7 +66,7 @@ class CORE_EXPORT QgsExpressionNode SIP_ABSTRACT
     SIP_END
 #endif
 
-    Q_DECLARE_TR_FUNCTIONS( QgsExpressionNode );
+    Q_DECLARE_TR_FUNCTIONS( QgsExpressionNode )
 
   public:
 
@@ -79,7 +79,8 @@ class CORE_EXPORT QgsExpressionNode SIP_ABSTRACT
       ntFunction,  //!< \see QgsExpression::Node::NodeFunction
       ntLiteral, //!< \see QgsExpression::Node::NodeLiteral
       ntColumnRef, //!< \see QgsExpression::Node::NodeColumnRef
-      ntCondition //!< \see QgsExpression::Node::NodeCondition
+      ntCondition, //!< \see QgsExpression::Node::NodeCondition
+      ntIndexOperator, //!< Index operator
     };
 
 

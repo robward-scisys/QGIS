@@ -15,6 +15,7 @@
  *                                                                         *
  ***************************************************************************/
 
+#include "qgsgdalutils.h"
 #include "qgsrastercalcdialog.h"
 #include "qgsproject.h"
 #include "qgsrastercalcnode.h"
@@ -32,7 +33,7 @@
 QgsRasterCalcDialog::QgsRasterCalcDialog( QgsRasterLayer *rasterLayer, QWidget *parent, Qt::WindowFlags f ): QDialog( parent, f )
 {
   setupUi( this );
-  QgsGui::instance()->enableAutoGeometryRestore( this );
+  QgsGui::enableAutoGeometryRestore( this );
 
   connect( mRasterBandsListWidget, &QListWidget::itemDoubleClicked, this, &QgsRasterCalcDialog::mRasterBandsListWidget_itemDoubleClicked );
   connect( mButtonBox, &QDialogButtonBox::accepted, this, &QgsRasterCalcDialog::mButtonBox_accepted );
@@ -120,7 +121,7 @@ QString QgsRasterCalcDialog::outputFormat() const
   int index = mOutputFormatComboBox->currentIndex();
   if ( index == -1 )
   {
-    return QLatin1String( "" );
+    return QString();
   }
   return mOutputFormatComboBox->itemData( index ).toString();
 }
@@ -152,6 +153,7 @@ QVector<QgsRasterCalculatorEntry> QgsRasterCalcDialog::rasterEntries() const
   return entries;
 }
 
+
 void QgsRasterCalcDialog::setExtentSize( int width, int height, QgsRectangle bbox )
 {
   mNColumnsSpinBox->setValue( width );
@@ -163,14 +165,14 @@ void QgsRasterCalcDialog::setExtentSize( int width, int height, QgsRectangle bbo
   mExtentSizeSet = true;
 }
 
+
 void QgsRasterCalcDialog::insertAvailableRasterBands()
 {
-  const QMap<QString, QgsMapLayer *> &layers = QgsProject::instance()->mapLayers();
-  QMap<QString, QgsMapLayer *>::const_iterator layerIt = layers.constBegin();
-
-  for ( ; layerIt != layers.constEnd(); ++layerIt )
+  mAvailableRasterBands = QgsRasterCalculatorEntry::rasterEntries().toList();
+  mRasterBandsListWidget->clear();
+  for ( const auto &entry : qgis::as_const( mAvailableRasterBands ) )
   {
-    QgsRasterLayer *rlayer = dynamic_cast<QgsRasterLayer *>( layerIt.value() );
+    QgsRasterLayer *rlayer = entry.raster;
     if ( rlayer && rlayer->dataProvider() && rlayer->dataProvider()->name() == QLatin1String( "gdal" ) )
     {
       if ( !mExtentSizeSet ) //set bounding box / resolution of output to the values of the first possible input layer
@@ -178,16 +180,9 @@ void QgsRasterCalcDialog::insertAvailableRasterBands()
         setExtentSize( rlayer->width(), rlayer->height(), rlayer->extent() );
         mCrsSelector->setCrs( rlayer->crs() );
       }
-      //get number of bands
-      for ( int i = 0; i < rlayer->bandCount(); ++i )
-      {
-        QgsRasterCalculatorEntry entry;
-        entry.raster = rlayer;
-        entry.bandNumber = i + 1;
-        entry.ref = rlayer->name() + '@' + QString::number( i + 1 );
-        mAvailableRasterBands.push_back( entry );
-        mRasterBandsListWidget->addItem( entry.ref );
-      }
+      QListWidgetItem *item = new QListWidgetItem( entry.ref, mRasterBandsListWidget );
+      item->setData( Qt::ToolTipRole, rlayer->publicSource() );
+      mRasterBandsListWidget->addItem( item );
     }
   }
 }
@@ -202,8 +197,7 @@ void QgsRasterCalcDialog::insertAvailableOutputFormats()
     GDALDriverH driver = GDALGetDriver( i );
     if ( driver )
     {
-      char **driverMetadata = GDALGetMetadata( driver, nullptr );
-      if ( CSLFetchBoolean( driverMetadata, GDAL_DCAP_CREATE, false ) )
+      if ( QgsGdalUtils::supportsRasterCreate( driver ) )
       {
         QString driverShortName = GDALGetDriverShortName( driver );
         QString driverLongName = GDALGetDriverLongName( driver );
@@ -375,12 +369,12 @@ void QgsRasterCalcDialog::mDividePushButton_clicked()
 
 void QgsRasterCalcDialog::mSqrtButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( QStringLiteral( " std::sqrt ( " ) );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " sqrt ( " ) );
 }
 
 void QgsRasterCalcDialog::mCosButton_clicked()
 {
-  mExpressionTextEdit->insertPlainText( QStringLiteral( " std::cos ( " ) );
+  mExpressionTextEdit->insertPlainText( QStringLiteral( " cos ( " ) );
 }
 
 void QgsRasterCalcDialog::mSinButton_clicked()

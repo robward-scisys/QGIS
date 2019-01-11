@@ -86,6 +86,8 @@ class QgsSpatiaLiteProvider: public QgsVectorDataProvider
     bool setSubsetString( const QString &theSQL, bool updateFeatureCount = true ) override;
     bool supportsSubsetString() const override { return true; }
     QgsWkbTypes::Type wkbType() const override;
+    //! Return the table schema condition
+    static QString tableSchemaCondition( const QgsDataSourceUri &dsUri );
 
     /**
      * Returns the number of layers for the current data source
@@ -141,8 +143,6 @@ class QgsSpatiaLiteProvider: public QgsVectorDataProvider
                                   unsigned char **wkb, int *geom_size );
     static int computeMultiWKB3Dsize( const unsigned char *p_in, int little_endian,
                                       int endian_arch );
-    static QString quotedIdentifier( QString id );
-    static QString quotedValue( QString value );
 
     struct SLFieldNotFound {}; //! Exception to throw
 
@@ -201,6 +201,9 @@ class QgsSpatiaLiteProvider: public QgsVectorDataProvider
     //! For views, try to get primary key from a dedicated meta table
     void determineViewPrimaryKey();
 
+    //! Returns primary key(s) from a table name
+    QStringList tablePrimaryKeys( const QString &tableName ) const;
+
     //! Check if a table/view has any triggers.  Triggers can be used on views to make them editable.
     bool hasTriggers();
 
@@ -227,6 +230,9 @@ class QgsSpatiaLiteProvider: public QgsVectorDataProvider
 
     //! Flag indicating if the layer data source is based on a query
     bool mIsQuery = false;
+
+    //! Flag indicating if ROWID has been injected in the query
+    bool mRowidInjectedInQuery = false;
 
     //! Flag indicating if the layer data source is based on a plain Table
     bool mTableBased = false;

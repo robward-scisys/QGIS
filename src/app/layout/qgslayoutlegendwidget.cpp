@@ -699,7 +699,19 @@ void QgsLayoutLegendWidget::mAddToolButton_clicked()
     return;
   }
 
+  QList< QgsMapLayer * > visibleLayers;
+  if ( mLegend->linkedMap() )
+  {
+    visibleLayers = mLegend->linkedMap()->layersToRender();
+  }
+  if ( visibleLayers.isEmpty() )
+  {
+    // just use current canvas layers as visible layers
+    visibleLayers = QgisApp::instance()->mapCanvas()->layers();
+  }
+
   QgsLayoutLegendLayersDialog addDialog( this );
+  addDialog.setVisibleLayers( visibleLayers );
   if ( addDialog.exec() == QDialog::Accepted )
   {
     const QList<QgsMapLayer *> layers = addDialog.selectedLayers();
@@ -827,7 +839,7 @@ void QgsLayoutLegendWidget::resetLayerNodeToDefaults()
 
 void QgsLayoutLegendWidget::mCountToolButton_clicked( bool checked )
 {
-  QgsDebugMsg( "Entered." );
+  QgsDebugMsg( QStringLiteral( "Entered." ) );
   if ( !mLegend )
   {
     return;
@@ -856,6 +868,7 @@ void QgsLayoutLegendWidget::mFilterByMapToolButton_toggled( bool checked )
   mLegend->beginCommand( tr( "Update Legend" ) );
   mLegend->setLegendFilterByMapEnabled( checked );
   mLegend->adjustBoxSize();
+  mLegend->update();
   mLegend->endCommand();
 }
 
@@ -1093,7 +1106,7 @@ void QgsLayoutLegendWidget::mItemTreeView_doubleClicked( const QModelIndex &idx 
   }
 
   bool ok;
-  QString newText = QInputDialog::getText( this, tr( "Legend item properties" ), tr( "Item text" ),
+  QString newText = QInputDialog::getText( this, tr( "Legend Item Properties" ), tr( "Item text" ),
                     QLineEdit::Normal, currentText, &ok );
   if ( !ok || newText == currentText )
     return;
@@ -1146,7 +1159,7 @@ QMenu *QgsLayoutLegendMenuProvider::createContextMenu()
 
   if ( QgsLayerTree::isLayer( mView->currentNode() ) )
   {
-    menu->addAction( QObject::tr( "Reset to Defaults" ), mWidget, SLOT( resetLayerNodeToDefaults() ) );
+    menu->addAction( QObject::tr( "Reset to Defaults" ), mWidget, &QgsLayoutLegendWidget::resetLayerNodeToDefaults );
     menu->addSeparator();
   }
 
@@ -1156,7 +1169,7 @@ QMenu *QgsLayoutLegendMenuProvider::createContextMenu()
   lst << QgsLegendStyle::Hidden << QgsLegendStyle::Group << QgsLegendStyle::Subgroup;
   for ( QgsLegendStyle::Style style : qgis::as_const( lst ) )
   {
-    QAction *action = menu->addAction( QgsLegendStyle::styleLabel( style ), mWidget, SLOT( setCurrentNodeStyleFromAction() ) );
+    QAction *action = menu->addAction( QgsLegendStyle::styleLabel( style ), mWidget, &QgsLayoutLegendWidget::setCurrentNodeStyleFromAction );
     action->setCheckable( true );
     action->setChecked( currentStyle == style );
     action->setData( ( int ) style );

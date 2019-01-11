@@ -45,7 +45,7 @@ QgsSymbolButton::QgsSymbolButton( QWidget *parent, const QString &dialogTitle )
 
   //make sure height of button looks good under different platforms
   QSize size = QToolButton::minimumSizeHint();
-  int fontHeight = Qgis::UI_SCALE_FACTOR * fontMetrics().height() * 1.4;
+  int fontHeight = static_cast< int >( Qgis::UI_SCALE_FACTOR * fontMetrics().height() * 1.4 );
   mSizeHint = QSize( size.width(), std::max( size.height(), fontHeight ) );
 }
 
@@ -100,6 +100,7 @@ void QgsSymbolButton::showSettingsDialog()
   QgsSymbolWidgetContext symbolContext;
   symbolContext.setExpressionContext( &context );
   symbolContext.setMapCanvas( mMapCanvas );
+  symbolContext.setMessageBar( mMessageBar );
 
   QgsPanelWidget *panel = QgsPanelWidget::findParentPanel( this );
   if ( panel && panel->dockMode() )
@@ -152,6 +153,16 @@ QgsMapCanvas *QgsSymbolButton::mapCanvas() const
 void QgsSymbolButton::setMapCanvas( QgsMapCanvas *mapCanvas )
 {
   mMapCanvas = mapCanvas;
+}
+
+void QgsSymbolButton::setMessageBar( QgsMessageBar *bar )
+{
+  mMessageBar = bar;
+}
+
+QgsMessageBar *QgsSymbolButton::messageBar() const
+{
+  return mMessageBar;
 }
 
 QgsVectorLayer *QgsSymbolButton::layer() const
@@ -470,6 +481,17 @@ void QgsSymbolButton::updatePreview( const QColor &color, QgsSymbol *tempSymbol 
   QIcon icon = QgsSymbolLayerUtils::symbolPreviewIcon( previewSymbol.get(), currentIconSize );
   setIconSize( currentIconSize );
   setIcon( icon );
+
+  // set tooltip
+  // create very large preview image
+  int width = static_cast< int >( Qgis::UI_SCALE_FACTOR * fontMetrics().width( 'X' ) * 23 );
+  int height = static_cast< int >( width / 1.61803398875 ); // golden ratio
+
+  QPixmap pm = QgsSymbolLayerUtils::symbolPreviewPixmap( previewSymbol.get(), QSize( width, height ), height / 20 );
+  QByteArray data;
+  QBuffer buffer( &data );
+  pm.save( &buffer, "PNG", 100 );
+  setToolTip( QStringLiteral( "<img src='data:image/png;base64, %3'>" ).arg( QString( data.toBase64() ) ) );
 }
 
 bool QgsSymbolButton::colorFromMimeData( const QMimeData *mimeData, QColor &resultColor, bool &hasAlpha )

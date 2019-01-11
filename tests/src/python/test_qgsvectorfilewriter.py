@@ -30,8 +30,9 @@ from qgis.core import (QgsVectorLayer,
                        QgsRectangle,
                        QgsCoordinateTransform
                        )
-from qgis.PyQt.QtCore import QDate, QTime, QDateTime, QVariant, QDir
+from qgis.PyQt.QtCore import QDate, QTime, QDateTime, QVariant, QDir, QByteArray
 import os
+import tempfile
 import osgeo.gdal  # NOQA
 from osgeo import gdal, ogr
 from qgis.testing import start_app, unittest
@@ -94,6 +95,30 @@ class TestQgsVectorFileWriter(unittest.TestCase):
 
         writeShape(self.mMemoryLayer, 'writetest.shp')
 
+    def testWriteWithLongLongField(self):
+        ml = QgsVectorLayer('NoGeometry?crs=epsg:4326&field=fldlonglong:long',
+                            'test2', 'memory')
+        provider = ml.dataProvider()
+        feat = QgsFeature()
+        feat.setAttributes([2262000000])
+        provider.addFeatures([feat])
+
+        filename = os.path.join(str(QDir.tempPath()), 'with_longlong_field')
+        crs = QgsCoordinateReferenceSystem()
+        crs.createFromId(4326, QgsCoordinateReferenceSystem.EpsgCrsId)
+        rc, errmsg = QgsVectorFileWriter.writeAsVectorFormat(ml, filename, 'utf-8', crs, 'GPKG')
+
+        # open the resulting geopackage
+        vl = QgsVectorLayer(filename + '.gpkg', '', 'ogr')
+        self.assertTrue(vl.isValid())
+
+        # test values
+        idx = vl.fields().indexFromName('fldlonglong')
+        self.assertEqual(vl.getFeature(1).attributes()[idx], 2262000000)
+
+        del vl
+        os.unlink(filename + '.gpkg')
+
     def testWriteWithBoolField(self):
 
         # init connection string
@@ -133,6 +158,9 @@ class TestQgsVectorFileWriter(unittest.TestCase):
         # test values
         self.assertEqual(vl.getFeature(1).attributes()[idx], 1)
         self.assertEqual(vl.getFeature(2).attributes()[idx], 0)
+
+        del vl
+        os.unlink(filename + '.gpkg')
 
     def testDateTimeWriteShapefile(self):
         """Check writing date and time fields to an ESRI shapefile."""
@@ -876,6 +904,206 @@ class TestQgsVectorFileWriter(unittest.TestCase):
         self.assertTrue(QgsVectorFileWriter.supportsFeatureStyles('KML'))
         self.assertTrue(QgsVectorFileWriter.supportsFeatureStyles('MapInfo File'))
         self.assertTrue(QgsVectorFileWriter.supportsFeatureStyles('MapInfo MIF'))
+
+    def testOverwriteGPKG(self):
+        """Test that overwriting the same origin GPKG file works only if the layername is different"""
+
+        # Prepare test data
+        ml = QgsVectorLayer('Point?field=firstfield:int&field=secondfield:int', 'test', 'memory')
+        provider = ml.dataProvider()
+        ft = QgsFeature()
+        ft.setAttributes([4, -10])
+        provider.addFeatures([ft])
+        filehandle, filename = tempfile.mkstemp('.gpkg')
+
+        options = QgsVectorFileWriter.SaveVectorOptions()
+        options.driverName = 'GPKG'
+        options.layerName = 'test'
+        write_result, error_message = QgsVectorFileWriter.writeAsVectorFormat(
+            ml,
+            filename,
+            options)
+        self.assertEqual(write_result, QgsVectorFileWriter.NoError, error_message)
+
+        # Real test
+        vl = QgsVectorLayer("%s|layername=test" % filename, 'src_test', 'ogr')
+        self.assertTrue(vl.isValid())
+        self.assertEqual(vl.featureCount(), 1)
+
+        # This must fail
+        write_result, error_message = QgsVectorFileWriter.writeAsVectorFormat(
+            vl,
+            filename,
+            options)
+        self.assertEqual(write_result, QgsVectorFileWriter.ErrCreateDataSource)
+        self.assertEqual(error_message, 'Cannot overwrite a OGR layer in place')
+
+        options.layerName = 'test2'
+        write_result, error_message = QgsVectorFileWriter.writeAsVectorFormat(
+            vl,
+            filename,
+            options)
+        self.assertEqual(write_result, QgsVectorFileWriter.NoError, error_message)
+
+    def testCreateDGN(self):
+        ml = QgsVectorLayer('Point?crs=epsg:4326', 'test', 'memory')
+        provider = ml.dataProvider()
+        feat = QgsFeature()
+        feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(10, 10)))
+        provider.addFeatures([feat])
+
+        filename = os.path.join(str(QDir.tempPath()), 'testCreateDGN.dgn')
+        crs = QgsCoordinateReferenceSystem()
+        crs.createFromId(4326, QgsCoordinateReferenceSystem.EpsgCrsId)
+        rc, errmsg = QgsVectorFileWriter.writeAsVectorFormat(ml, filename, 'utf-8', crs, 'DGN')
+
+        # open the resulting file
+        vl = QgsVectorLayer(filename, '', 'ogr')
+        self.assertTrue(vl.isValid())
+        self.assertEqual(vl.featureCount(), 1)
+        del vl
+
+        # append
+        options = QgsVectorFileWriter.SaveVectorOptions()
+        options.driverName = 'DGN'
+        options.layerName = 'test'
+        options.actionOnExistingFile = QgsVectorFileWriter.AppendToLayerNoNewFields
+        write_result, error_message = QgsVectorFileWriter.writeAsVectorFormat(
+            ml,
+            filename,
+            options)
+        self.assertEqual(write_result, QgsVectorFileWriter.NoError, error_message)
+
+        # open the resulting file
+        vl = QgsVectorLayer(filename, '', 'ogr')
+        self.assertTrue(vl.isValid())
+        self.assertEqual(vl.featureCount(), 2)
+        del vl
+
+        os.unlink(filename)
+
+    def testAddZ(self):
+        """Check adding z values to non z input."""
+        input = QgsVectorLayer(
+            'Point?crs=epsg:4326&field=name:string(20)',
+            'test',
+            'memory')
+
+        self.assertTrue(input.isValid(), 'Provider not initialized')
+
+        ft = QgsFeature()
+        ft.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(10, 10)))
+        myResult, myFeatures = input.dataProvider().addFeatures([ft])
+        self.assertTrue(myResult)
+        self.assertTrue(myFeatures)
+
+        dest_file_name = os.path.join(str(QDir.tempPath()), 'add_z.geojson')
+        options = QgsVectorFileWriter.SaveVectorOptions()
+        options.overrideGeometryType = QgsWkbTypes.PointZ
+        options.driverName = 'GeoJSON'
+        write_result, error_message = QgsVectorFileWriter.writeAsVectorFormat(
+            input,
+            dest_file_name,
+            options)
+        self.assertEqual(write_result, QgsVectorFileWriter.NoError, error_message)
+
+        # Open result and check
+        created_layer = QgsVectorLayer(dest_file_name, 'test', 'ogr')
+        self.assertTrue(created_layer.isValid())
+        f = next(created_layer.getFeatures(QgsFeatureRequest()))
+        self.assertEqual(f.geometry().asWkt(), 'PointZ (10 10 0)')
+
+    def testDropZ(self):
+        """Check dropping z values input."""
+        input = QgsVectorLayer(
+            'PointZ?crs=epsg:4326&field=name:string(20)',
+            'test',
+            'memory')
+
+        self.assertTrue(input.isValid(), 'Provider not initialized')
+
+        ft = QgsFeature()
+        ft.setGeometry(QgsGeometry.fromWkt('PointM(10 10 2)'))
+        myResult, myFeatures = input.dataProvider().addFeatures([ft])
+        self.assertTrue(myResult)
+        self.assertTrue(myFeatures)
+
+        dest_file_name = os.path.join(str(QDir.tempPath()), 'drop_z.geojson')
+        options = QgsVectorFileWriter.SaveVectorOptions()
+        options.overrideGeometryType = QgsWkbTypes.PointM
+        options.driverName = 'GeoJSON'
+        write_result, error_message = QgsVectorFileWriter.writeAsVectorFormat(
+            input,
+            dest_file_name,
+            options)
+        self.assertEqual(write_result, QgsVectorFileWriter.NoError, error_message)
+
+        # Open result and check
+        created_layer = QgsVectorLayer(dest_file_name, 'test', 'ogr')
+        self.assertTrue(created_layer.isValid())
+        f = next(created_layer.getFeatures(QgsFeatureRequest()))
+        self.assertEqual(f.geometry().asWkt(), 'Point (10 10)')
+
+    def testWriteWithBinaryField(self):
+        """
+        Test writing with a binary field
+        :return:
+        """
+        basetestpath = tempfile.mkdtemp()
+
+        tmpfile = os.path.join(basetestpath, 'binaryfield.sqlite')
+        ds = ogr.GetDriverByName('SQLite').CreateDataSource(tmpfile)
+        lyr = ds.CreateLayer('test', geom_type=ogr.wkbPoint, options=['FID=fid'])
+        lyr.CreateField(ogr.FieldDefn('strfield', ogr.OFTString))
+        lyr.CreateField(ogr.FieldDefn('intfield', ogr.OFTInteger))
+        lyr.CreateField(ogr.FieldDefn('binfield', ogr.OFTBinary))
+        lyr.CreateField(ogr.FieldDefn('binfield2', ogr.OFTBinary))
+        f = None
+        ds = None
+
+        vl = QgsVectorLayer(tmpfile)
+        self.assertTrue(vl.isValid())
+
+        # check that 1 of its fields is a bool
+        fields = vl.fields()
+        self.assertEqual(fields.at(fields.indexFromName('binfield')).type(), QVariant.ByteArray)
+
+        dp = vl.dataProvider()
+        f = QgsFeature(fields)
+        bin_1 = b'xxx'
+        bin_2 = b'yyy'
+        bin_val1 = QByteArray(bin_1)
+        bin_val2 = QByteArray(bin_2)
+        f.setAttributes([1, 'str', 100, bin_val1, bin_val2])
+        self.assertTrue(dp.addFeature(f))
+
+        # write a gpkg package with a binary field
+        filename = os.path.join(str(QDir.tempPath()), 'with_bin_field')
+        rc, errmsg = QgsVectorFileWriter.writeAsVectorFormat(vl,
+                                                             filename,
+                                                             'utf-8',
+                                                             vl.crs(),
+                                                             'GPKG')
+
+        self.assertEqual(rc, QgsVectorFileWriter.NoError)
+
+        # open the resulting geopackage
+        vl = QgsVectorLayer(filename + '.gpkg', '', 'ogr')
+        self.assertTrue(vl.isValid())
+        fields = vl.fields()
+
+        # test type of converted field
+        idx = fields.indexFromName('binfield')
+        self.assertEqual(fields.at(idx).type(), QVariant.ByteArray)
+        idx2 = fields.indexFromName('binfield2')
+        self.assertEqual(fields.at(idx2).type(), QVariant.ByteArray)
+
+        # test values
+        self.assertEqual(vl.getFeature(1).attributes()[idx], bin_val1)
+        self.assertEqual(vl.getFeature(1).attributes()[idx2], bin_val2)
+
+        del vl
+        os.unlink(filename + '.gpkg')
 
 
 if __name__ == '__main__':

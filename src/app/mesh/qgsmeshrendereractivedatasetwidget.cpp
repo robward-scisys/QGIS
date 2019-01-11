@@ -15,6 +15,8 @@
 
 #include "qgsmeshrendereractivedatasetwidget.h"
 
+#include <QDateTime>
+
 #include "qgis.h"
 #include "qgsmeshlayer.h"
 #include "qgsmessagelog.h"
@@ -24,20 +26,35 @@ QgsMeshRendererActiveDatasetWidget::QgsMeshRendererActiveDatasetWidget( QWidget 
   : QWidget( parent )
 {
   setupUi( this );
-  connect( mDatasetGroupTreeView, &QgsMeshDatasetGroupTreeView::activeGroupChanged, this, &QgsMeshRendererActiveDatasetWidget::onActiveGroupChanged );
-  connect( mDatasetSlider, &QSlider::valueChanged, this, &QgsMeshRendererActiveDatasetWidget::onActiveDatasetChanged );
+
+  connect( mTimeComboBox, qgis::overload<int>::of( &QComboBox::currentIndexChanged ), this, &QgsMeshRendererActiveDatasetWidget::onActiveTimeChanged );
+  connect( mDatasetSlider, &QSlider::valueChanged, mTimeComboBox, &QComboBox::setCurrentIndex );
+
+  connect( mFirstDatasetButton, &QToolButton::clicked, this, &QgsMeshRendererActiveDatasetWidget::onFirstTimeClicked );
+  connect( mPreviousDatasetButton, &QToolButton::clicked, this, &QgsMeshRendererActiveDatasetWidget::onPreviousTimeClicked );
+  connect( mNextDatasetButton, &QToolButton::clicked, this, &QgsMeshRendererActiveDatasetWidget::onNextTimeClicked );
+  connect( mLastDatasetButton, &QToolButton::clicked, this, &QgsMeshRendererActiveDatasetWidget::onLastTimeClicked );
+
+  connect( mDatasetGroupTreeView, &QgsMeshDatasetGroupTreeView::activeScalarGroupChanged,
+           this, &QgsMeshRendererActiveDatasetWidget::onActiveScalarGroupChanged );
+  connect( mDatasetGroupTreeView, &QgsMeshDatasetGroupTreeView::activeVectorGroupChanged,
+           this, &QgsMeshRendererActiveDatasetWidget::onActiveVectorGroupChanged );
 }
 
 void QgsMeshRendererActiveDatasetWidget::setLayer( QgsMeshLayer *layer )
 {
-  if ( layer != mMeshLayer )
-  {
-    mMeshLayer = layer;
-  }
-
+  mMeshLayer = layer;
   mDatasetGroupTreeView->setLayer( layer );
-  setEnabled( mMeshLayer );
-  syncToLayer();
+}
+
+int QgsMeshRendererActiveDatasetWidget::activeScalarDatasetGroup() const
+{
+  return mActiveScalarDatasetGroup;
+}
+
+int QgsMeshRendererActiveDatasetWidget::activeVectorDatasetGroup() const
+{
+  return mActiveVectorDatasetGroup;
 }
 
 QgsMeshDatasetIndex QgsMeshRendererActiveDatasetWidget::activeScalarDataset() const
@@ -50,132 +67,261 @@ QgsMeshDatasetIndex QgsMeshRendererActiveDatasetWidget::activeVectorDataset() co
   return mActiveVectorDataset;
 }
 
-void QgsMeshRendererActiveDatasetWidget::setSliderRange()
+void QgsMeshRendererActiveDatasetWidget::setTimeRange()
 {
-  int datasetCount = 1;
-  if ( mMeshLayer &&
-       mMeshLayer->dataProvider() )
-    datasetCount = mMeshLayer->dataProvider()->datasetCount( mDatasetGroupTreeView->activeGroup() );
+  // figure out which dataset group contains the greatest number of datasets.
+  // this group will be used to initialize the time combo box.
+  int datasetCount = 0;
+  int groupWithMaximumDatasets = -1;
+  if ( mMeshLayer && mMeshLayer->dataProvider() )
+  {
+    for ( int i = 0; i < mMeshLayer->dataProvider()->datasetGroupCount(); ++i )
+    {
+      int currentCount = mMeshLayer->dataProvider()->datasetCount( i );
+      if ( currentCount > datasetCount )
+      {
+        datasetCount = currentCount;
+        groupWithMaximumDatasets = i;
+      }
+    }
+  }
 
+  // update slider
+  mDatasetSlider->blockSignals( true );
   mDatasetSlider->setMinimum( 0 );
   mDatasetSlider->setMaximum( datasetCount - 1 );
+  mDatasetSlider->blockSignals( false );
+
+  // update combobox
+  mTimeComboBox->blockSignals( true );
+  mTimeComboBox->clear();
+  if ( groupWithMaximumDatasets > -1 )
+  {
+    for ( int i = 0; i < datasetCount; ++i )
+    {
+      QgsMeshDatasetIndex index( groupWithMaximumDatasets, i );
+      QgsMeshDatasetMetadata meta = mMeshLayer->dataProvider()->datasetMetadata( index );
+      double time = meta.time();
+      mTimeComboBox->addItem( timeToString( time ), time );
+    }
+  }
+  mTimeComboBox->blockSignals( false );
+
+  // enable/disable time controls depending on whether the data set is time varying
+  bool isTimeVarying = datasetCount > 1;
+  mTimeComboBox->setEnabled( isTimeVarying );
+  mDatasetSlider->setEnabled( isTimeVarying );
+  mFirstDatasetButton->setEnabled( isTimeVarying );
+  mPreviousDatasetButton->setEnabled( isTimeVarying );
+  mNextDatasetButton->setEnabled( isTimeVarying );
+  mLastDatasetButton->setEnabled( isTimeVarying );
 }
 
-void QgsMeshRendererActiveDatasetWidget::onActiveGroupChanged()
+void QgsMeshRendererActiveDatasetWidget::onActiveScalarGroupChanged( int groupIndex )
 {
-  setSliderRange();
+  if ( groupIndex == mActiveScalarDatasetGroup )
+    return;
+
+  mActiveScalarDatasetGroup = groupIndex;
 
   // keep the same timestep if possible
-  int val = mDatasetSlider->value();
-  if ( ( val < 0 ) || ( val > mDatasetSlider->maximum() ) )
-    val = 0;
-
-  mDatasetSlider->setValue( val );
-  onActiveDatasetChanged( val );
+  onActiveTimeChanged( mTimeComboBox->currentIndex() );
+  emit activeScalarGroupChanged( mActiveScalarDatasetGroup );
 }
 
-void QgsMeshRendererActiveDatasetWidget::onActiveDatasetChanged( int value )
+void QgsMeshRendererActiveDatasetWidget::onActiveVectorGroupChanged( int groupIndex )
 {
-  int groupIndex = mDatasetGroupTreeView->activeGroup();
+  if ( groupIndex == mActiveVectorDatasetGroup )
+    return;
 
-  mActiveScalarDataset = QgsMeshDatasetIndex();
-  mActiveVectorDataset = QgsMeshDatasetIndex();
-  QgsMeshDatasetIndex datasetIndex( groupIndex, value );
+  mActiveVectorDatasetGroup = groupIndex;
 
-  if ( mMeshLayer &&
-       mMeshLayer->dataProvider() &&
-       mMeshLayer->dataProvider()->datasetCount( groupIndex ) > value )
+  // keep the same timestep if possible
+  onActiveTimeChanged( mTimeComboBox->currentIndex() );
+  emit activeVectorGroupChanged( mActiveVectorDatasetGroup );
+}
+
+void QgsMeshRendererActiveDatasetWidget::onActiveTimeChanged( int value )
+{
+  if ( !mMeshLayer || !mMeshLayer->dataProvider() )
+    return;
+
+  bool changed = false;
+
+  QgsMeshDatasetIndex activeScalarDataset(
+    mActiveScalarDatasetGroup,
+    std::min( value, mMeshLayer->dataProvider()->datasetCount( mActiveScalarDatasetGroup ) - 1 )
+  );
+  if ( activeScalarDataset != mActiveScalarDataset )
   {
-    const QgsMeshDatasetGroupMetadata meta = mMeshLayer->dataProvider()->datasetGroupMetadata( datasetIndex );
-    mActiveScalarDataset = datasetIndex;
-    if ( meta.isVector() )
-      mActiveVectorDataset = datasetIndex;
+    mActiveScalarDataset = activeScalarDataset;
+    changed = true;
   }
 
-  updateMetadata( datasetIndex );
+  QgsMeshDatasetIndex activeVectorDataset(
+    mActiveVectorDatasetGroup,
+    std::min( value, mMeshLayer->dataProvider()->datasetCount( mActiveVectorDatasetGroup ) - 1 )
+  );
+  if ( activeVectorDataset != mActiveVectorDataset )
+  {
+    mActiveVectorDataset = activeVectorDataset;
+    changed = true;
+  }
 
-  emit activeScalarDatasetChanged( activeScalarDataset() );
-  emit activeVectorDatasetChanged( activeVectorDataset() );
-
-  emit widgetChanged();
+  if ( changed )
+  {
+    whileBlocking( mDatasetSlider )->setValue( value );
+    updateMetadata();
+    emit widgetChanged();
+  }
 }
 
-void QgsMeshRendererActiveDatasetWidget::updateMetadata( QgsMeshDatasetIndex datasetIndex )
+void QgsMeshRendererActiveDatasetWidget::onFirstTimeClicked()
 {
+  mTimeComboBox->setCurrentIndex( 0 );
+}
+
+void QgsMeshRendererActiveDatasetWidget::onPreviousTimeClicked()
+{
+  int idx = mTimeComboBox->currentIndex() - 1;
+  if ( idx >= 0 )
+    mTimeComboBox->setCurrentIndex( idx );
+}
+
+void QgsMeshRendererActiveDatasetWidget::onNextTimeClicked()
+{
+  int idx = mTimeComboBox->currentIndex() + 1;
+  if ( idx < mTimeComboBox->count() )
+    mTimeComboBox->setCurrentIndex( idx );
+}
+
+void QgsMeshRendererActiveDatasetWidget::onLastTimeClicked()
+{
+  mTimeComboBox->setCurrentIndex( mTimeComboBox->count() - 1 );
+}
+
+void QgsMeshRendererActiveDatasetWidget::updateMetadata()
+{
+  QString msg;
+
   if ( !mMeshLayer ||
-       !mMeshLayer->dataProvider() ||
-       !datasetIndex.isValid() )
+       !mMeshLayer->dataProvider() )
   {
-    mActiveDatasetMetadata->setText( tr( "No dataset selected" ) );
+    msg += tr( "Invalid mesh layer selected" );
   }
   else
   {
-    QString msg;
-    msg += QStringLiteral( "<table>" );
-
-    const QgsMeshDatasetMetadata meta = mMeshLayer->dataProvider()->datasetMetadata( datasetIndex );
-    msg += QStringLiteral( "<tr><td>%1</td><td>%2</td></tr>" )
-           .arg( tr( "Is valid" ) )
-           .arg( meta.isValid() ? tr( "Yes" ) : tr( "No" ) );
-
-    msg += QStringLiteral( "<tr><td>%1</td><td>%2</td></tr>" )
-           .arg( tr( "Time" ) )
-           .arg( meta.time() );
-
-    const QgsMeshDatasetGroupMetadata gmeta = mMeshLayer->dataProvider()->datasetGroupMetadata( datasetIndex );
-    msg += QStringLiteral( "<tr><td>%1</td><td>%2</td></tr>" )
-           .arg( tr( "Is on vertices" ) )
-           .arg( gmeta.isOnVertices() ? tr( "Yes" ) : tr( "No" ) );
-
-    msg += QStringLiteral( "<tr><td>%1</td><td>%2</td></tr>" )
-           .arg( tr( "Is vector" ) )
-           .arg( gmeta.isVector() ? tr( "Yes" ) : tr( "No" ) );
-
-    for ( auto it = gmeta.extraOptions().constBegin(); it != gmeta.extraOptions().constEnd(); ++it )
+    if ( mActiveScalarDataset.isValid() )
     {
-      msg += QStringLiteral( "<tr><td>%1</td><td>%2</td></tr>" ).arg( it.key() ).arg( it.value() );
+      if ( mActiveVectorDataset.isValid() )
+      {
+        if ( mActiveScalarDataset == mActiveVectorDataset )
+        {
+          msg += metadata( mActiveScalarDataset );
+        }
+        else
+        {
+          msg += QStringLiteral( "<p> <h3> %1 </h3> " ).arg( tr( "Scalar dataset" ) );
+          msg += metadata( mActiveScalarDataset );
+          msg += QStringLiteral( "</p> <p> <h3> %1 </h3>" ).arg( tr( "Vector dataset" ) );
+          msg += metadata( mActiveVectorDataset );
+          msg += QStringLiteral( "</p>" );
+        }
+      }
+      else
+      {
+        msg += metadata( mActiveScalarDataset );
+      }
     }
-
-    msg += QStringLiteral( "</table>" );
-    mActiveDatasetMetadata->setText( msg );
+    else
+    {
+      if ( mActiveVectorDataset.isValid() )
+      {
+        msg += metadata( mActiveVectorDataset );
+      }
+      else
+      {
+        msg += tr( "No mesh dataset selected" );
+      }
+    }
   }
 
+  mActiveDatasetMetadata->setText( msg );
 }
 
-QgsMeshDatasetIndex QgsMeshRendererActiveDatasetWidget::datasetIndex() const
+QString QgsMeshRendererActiveDatasetWidget::timeToString( double val )
 {
-  int value = mDatasetSlider->value();
-  int groupIndex = mDatasetGroupTreeView->activeGroup();
+  // time val should be in hours
+  int seconds = static_cast<int>( qgsRound( val * 3600.0, 0 ) );
+  QTime t = QTime( 0, 0 ).addSecs( seconds );
+  return t.toString();  // the format is "HH:mm:ss"
+}
 
-  if ( mMeshLayer &&
-       mMeshLayer->dataProvider() &&
-       mMeshLayer->dataProvider()->datasetCount( groupIndex ) > value
-     )
-    return QgsMeshDatasetIndex( groupIndex, value );
-  else
-    return QgsMeshDatasetIndex();
+QString QgsMeshRendererActiveDatasetWidget::metadata( QgsMeshDatasetIndex datasetIndex )
+{
+
+  QString msg;
+  msg += QStringLiteral( "<table>" );
+
+  const QgsMeshDatasetMetadata meta = mMeshLayer->dataProvider()->datasetMetadata( datasetIndex );
+  msg += QStringLiteral( "<tr><td>%1</td><td>%2</td></tr>" )
+         .arg( tr( "Is valid" ) )
+         .arg( meta.isValid() ? tr( "Yes" ) : tr( "No" ) );
+
+  msg += QStringLiteral( "<tr><td>%1</td><td>%2</td></tr>" )
+         .arg( tr( "Time" ) )
+         .arg( meta.time() );
+
+  const QgsMeshDatasetGroupMetadata gmeta = mMeshLayer->dataProvider()->datasetGroupMetadata( datasetIndex );
+  msg += QStringLiteral( "<tr><td>%1</td><td>%2</td></tr>" )
+         .arg( tr( "Data Type" ) )
+         .arg( gmeta.dataType() == QgsMeshDatasetGroupMetadata::DataOnVertices ? tr( "Defined on vertices" ) : tr( "Defined on faces" ) );
+
+  msg += QStringLiteral( "<tr><td>%1</td><td>%2</td></tr>" )
+         .arg( tr( "Is vector" ) )
+         .arg( gmeta.isVector() ? tr( "Yes" ) : tr( "No" ) );
+
+  for ( auto it = gmeta.extraOptions().constBegin(); it != gmeta.extraOptions().constEnd(); ++it )
+  {
+    msg += QStringLiteral( "<tr><td>%1</td><td>%2</td></tr>" ).arg( it.key() ).arg( it.value() );
+  }
+
+  msg += QStringLiteral( "</table>" );
+
+  return msg;
 }
 
 void QgsMeshRendererActiveDatasetWidget::syncToLayer()
 {
+  setEnabled( mMeshLayer );
+
   whileBlocking( mDatasetGroupTreeView )->syncToLayer();
 
   if ( mMeshLayer )
   {
-    mActiveScalarDataset = mMeshLayer->activeScalarDataset();
-    mActiveVectorDataset = mMeshLayer->activeVectorDataset();
+    const QgsMeshRendererSettings rendererSettings = mMeshLayer->rendererSettings();
+    mActiveScalarDatasetGroup = mDatasetGroupTreeView->activeScalarGroup();
+    mActiveVectorDatasetGroup = mDatasetGroupTreeView->activeVectorGroup();
+    mActiveScalarDataset = rendererSettings.activeScalarDataset();
+    mActiveVectorDataset = rendererSettings.activeVectorDataset();
   }
   else
   {
+    mActiveScalarDatasetGroup = -1;
+    mActiveVectorDatasetGroup = -1;
     mActiveScalarDataset = QgsMeshDatasetIndex();
     mActiveVectorDataset = QgsMeshDatasetIndex();
   }
 
+  setTimeRange();
+
   int val = 0;
   if ( mActiveScalarDataset.isValid() )
     val = mActiveScalarDataset.dataset();
-  mDatasetSlider->setValue( val );
+  else if ( mActiveVectorDataset.isValid() )
+    val = mActiveVectorDataset.dataset();
 
-  setSliderRange();
-  onActiveDatasetChanged( val );
+  whileBlocking( mTimeComboBox )->setCurrentIndex( val );
+  whileBlocking( mDatasetSlider )->setValue( val );
+  updateMetadata();
 }

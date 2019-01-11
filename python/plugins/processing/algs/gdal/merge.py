@@ -37,8 +37,7 @@ from qgis.core import (QgsRasterFileWriter,
                        QgsProcessingParameterString,
                        QgsProcessingParameterBoolean,
                        QgsProcessingParameterNumber,
-                       QgsProcessingParameterRasterDestination,
-                       QgsProcessingUtils)
+                       QgsProcessingParameterRasterDestination)
 from processing.algs.gdal.GdalAlgorithm import GdalAlgorithm
 from processing.algs.gdal.GdalUtils import GdalUtils
 
@@ -91,7 +90,7 @@ class merge(GdalAlgorithm):
         self.addParameter(nodata_out_param)
 
         options_param = QgsProcessingParameterString(self.OPTIONS,
-                                                     self.tr('Additional creation parameters'),
+                                                     self.tr('Additional creation options'),
                                                      defaultValue='',
                                                      optional=True)
         options_param.setFlags(options_param.flags() | QgsProcessingParameterDefinition.FlagAdvanced)
@@ -166,11 +165,8 @@ class merge(GdalAlgorithm):
         arguments.append('--optfile')
         arguments.append(list_file)
 
-        commands = []
+        commands = [self.commandName() + '.py', GdalUtils.escapeAndJoin(arguments)]
         if isWindows():
-            commands = ['cmd.exe', '/C ', self.commandName() + '.bat',
-                        GdalUtils.escapeAndJoin(arguments)]
-        else:
-            commands = [self.commandName() + '.py', GdalUtils.escapeAndJoin(arguments)]
+            commands.insert(0, 'python3')
 
         return commands

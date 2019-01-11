@@ -10,10 +10,6 @@ IF (CMAKE_BUILD_TYPE MATCHES Debug OR CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
   ADD_DEFINITIONS(-DQGSMSDEBUG=1)
 ENDIF (CMAKE_BUILD_TYPE MATCHES Debug OR CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
 
-IF (ENABLE_TESTS)
-  ADD_DEFINITIONS(-DENABLE_MS_TESTS=1)
-ENDIF (ENABLE_TESTS)
-
 ADD_SUBDIRECTORY(services)
 
 ########################################################
@@ -30,6 +26,7 @@ SET(QGIS_SERVER_SRCS
   qgsfilterrestorer.cpp
   qgsrequesthandler.cpp
   qgsserver.cpp
+  qgsserverparameters.cpp
   qgsserverexception.cpp
   qgsserverinterface.cpp
   qgsserverinterfaceimpl.cpp
@@ -56,6 +53,7 @@ SET (QGIS_SERVER_MOC_HDRS
   qgsconfigcache.h
   qgsserverlogger.h
   qgsserversettings.h
+  qgsserverparameters.h
 )
 
 
@@ -71,6 +69,8 @@ IF (WITH_SERVER_PLUGINS)
     qgsserverfilter.cpp
     qgsaccesscontrolfilter.cpp
     qgsaccesscontrol.cpp
+    qgsservercachefilter.cpp
+    qgsservercachemanager.cpp
   )
 ENDIF (WITH_SERVER_PLUGINS)
 

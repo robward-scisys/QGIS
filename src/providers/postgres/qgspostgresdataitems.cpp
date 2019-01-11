@@ -296,6 +296,7 @@ QgsPGLayerItem::QgsPGLayerItem( QgsDataItem *parent, const QString &name, const 
   : QgsLayerItem( parent, name, path, QString(), layerType, QStringLiteral( "postgres" ) )
   , mLayerProperty( layerProperty )
 {
+  mCapabilities |= Delete;
   mUri = createUri();
   setState( Populated );
   Q_ASSERT( mLayerProperty.size() == 1 );
@@ -317,10 +318,6 @@ QList<QAction *> QgsPGLayerItem::actions( QWidget *parent )
   connect( actionRenameLayer, &QAction::triggered, this, &QgsPGLayerItem::renameLayer );
   lst.append( actionRenameLayer );
 
-  QAction *actionDeleteLayer = new QAction( tr( "Delete %1" ).arg( typeName ), parent );
-  connect( actionDeleteLayer, &QAction::triggered, this, &QgsPGLayerItem::deleteLayer );
-  lst.append( actionDeleteLayer );
-
   if ( !mLayerProperty.isView )
   {
     QAction *actionTruncateLayer = new QAction( tr( "Truncate %1" ).arg( typeName ), parent );
@@ -338,12 +335,12 @@ QList<QAction *> QgsPGLayerItem::actions( QWidget *parent )
   return lst;
 }
 
-void QgsPGLayerItem::deleteLayer()
+bool QgsPGLayerItem::deleteLayer()
 {
   if ( QMessageBox::question( nullptr, QObject::tr( "Delete Table" ),
                               QObject::tr( "Are you sure you want to delete %1.%2?" ).arg( mLayerProperty.schemaName, mLayerProperty.tableName ),
                               QMessageBox::Yes | QMessageBox::No, QMessageBox::No ) != QMessageBox::Yes )
-    return;
+    return true;
 
   QString errCause;
   bool res = ::deleteLayer( mUri, errCause );
@@ -357,6 +354,7 @@ void QgsPGLayerItem::deleteLayer()
     if ( mParent )
       mParent->refresh();
   }
+  return true;
 }
 
 void QgsPGLayerItem::renameLayer()
@@ -499,7 +497,7 @@ QString QgsPGLayerItem::createUri()
 
   if ( !connItem )
   {
-    QgsDebugMsg( "connection item not found." );
+    QgsDebugMsg( QStringLiteral( "connection item not found." ) );
     return QString();
   }
 
@@ -508,7 +506,7 @@ QString QgsPGLayerItem::createUri()
   uri.setWkbType( mLayerProperty.types.at( 0 ) );
   if ( uri.wkbType() != QgsWkbTypes::NoGeometry )
     uri.setSrid( QString::number( mLayerProperty.srids.at( 0 ) ) );
-  QgsDebugMsg( QString( "layer uri: %1" ).arg( uri.uri( false ) ) );
+  QgsDebugMsg( QStringLiteral( "layer uri: %1" ).arg( uri.uri( false ) ) );
   return uri.uri( false );
 }
 
@@ -559,7 +557,7 @@ QVector<QgsDataItem *> QgsPGSchemaItem::createChildren()
     {
       if ( dontResolveType )
       {
-        //QgsDebugMsg( QString( "skipping column %1.%2 without type constraint" ).arg( layerProperty.schemaName ).arg( layerProperty.tableName ) );
+        //QgsDebugMsg( QStringLiteral( "skipping column %1.%2 without type constraint" ).arg( layerProperty.schemaName ).arg( layerProperty.tableName ) );
         continue;
       }
 

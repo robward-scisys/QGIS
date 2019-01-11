@@ -621,7 +621,7 @@ bool QgsGeometryCollection::fromCollectionWkt( const QString &wkt, const QVector
   }
   mWkbType = parts.first;
 
-  QString defChildWkbType = QStringLiteral( "%1%2%3 " ).arg( defaultChildWkbType, is3D() ? "Z" : "", isMeasure() ? "M" : "" );
+  QString defChildWkbType = QStringLiteral( "%1%2%3 " ).arg( defaultChildWkbType, is3D() ? QStringLiteral( "Z" ) : QString(), isMeasure() ? QStringLiteral( "M" ) : QString() );
 
   const QStringList blocks = QgsGeometryUtils::wktGetChildBlocks( parts.second, defChildWkbType );
   for ( const QString &childWkt : blocks )
@@ -826,6 +826,16 @@ void QgsGeometryCollection::filterVertices( const std::function<bool ( const Qgs
   {
     if ( geom )
       geom->filterVertices( filter );
+  }
+  clearCache();
+}
+
+void QgsGeometryCollection::transformVertices( const std::function<QgsPoint( const QgsPoint & )> &transform )
+{
+  for ( QgsAbstractGeometry *geom : qgis::as_const( mGeometries ) )
+  {
+    if ( geom )
+      geom->transformVertices( transform );
   }
   clearCache();
 }

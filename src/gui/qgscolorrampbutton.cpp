@@ -50,7 +50,7 @@ QgsColorRampButton::QgsColorRampButton( QWidget *parent, const QString &dialogTi
   setMenu( mMenu );
 
   mAllRampsMenu = new QMenu( mMenu );
-  mAllRampsMenu->setTitle( tr( "All color ramps" ) );
+  mAllRampsMenu->setTitle( tr( "All Color Ramps" ) );
 
   setPopupMode( QToolButton::MenuButtonPopup );
 
@@ -375,7 +375,7 @@ void QgsColorRampButton::createColorRamp()
   }
   else if ( rampType == tr( "Catalog: cpt-city" ) )
   {
-    ramp = new QgsCptCityColorRamp( QLatin1String( "" ), QLatin1String( "" ) );
+    ramp = new QgsCptCityColorRamp( QString(), QString() );
   }
   else
   {
@@ -553,7 +553,7 @@ void QgsColorRampButton::setButtonBackground( QgsColorRamp *colorramp )
     pm.fill( Qt::transparent );
 
     QPainter painter;
-    QPen pen  = ( QApplication::palette().buttonText().color() );
+    QPen pen  = ( palette().buttonText().color() );
 
     painter.begin( &pm );
     painter.setPen( pen );

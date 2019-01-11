@@ -153,6 +153,7 @@ class QgsWFSFeatureDownloader: public QgsWfsRequest
     int mPageSize;
     bool mRemoveNSPrefix;
     int mNumberMatched;
+    bool mUseProgressDialog = false;
     QWidget *mMainWindow = nullptr;
     QTimer *mTimer = nullptr;
     QgsWFSFeatureHitsAsyncRequest mFeatureHitsAsyncRequest;
@@ -216,6 +217,7 @@ class QgsWFSFeatureIterator : public QObject,
     void featureReceivedSynchronous( const QVector<QgsWFSFeatureGmlIdPair> &list );
     void endOfDownload( bool success );
     void checkInterruption();
+    void timeout();
 
   private:
 
@@ -236,6 +238,7 @@ class QgsWFSFeatureIterator : public QObject,
     QEventLoop *mLoop = nullptr;
     QgsFeatureIterator mCacheIterator;
     QgsFeedback *mInterruptionChecker = nullptr;
+    bool mTimeoutOccurred = false;
 
     //! this mutex synchronizes the mWriterXXXX variables between featureReceivedSynchronous() and fetchFeature()
     QMutex mMutex;

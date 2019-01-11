@@ -1,8 +1,8 @@
 /***************************************************************************
-                              qgsfssutils.cpp
+                              qgswfssutils.cpp
                               -------------------------
   begin                : December 20 , 2016
-  copyright            : (C) 2007 by Marco Hugentobler  ( parts fron qgswmshandler)
+  copyright            : (C) 2007 by Marco Hugentobler  ( parts from qgswmshandler)
                          (C) 2012 by René-Luc D'Hont    ( parts from qgswmshandler)
                          (C) 2014 by Alessandro Pasotti ( parts from qgswmshandler)
                          (C) 2017 by David Marteau
@@ -22,8 +22,10 @@
 
 #include "qgswfsutils.h"
 #include "qgsogcutils.h"
-#include "qgsconfigcache.h"
 #include "qgsserverprojectutils.h"
+#include "qgswfsparameters.h"
+#include "qgsvectorlayer.h"
+#include "qgsproject.h"
 
 namespace QgsWfs
 {
@@ -44,15 +46,15 @@ namespace QgsWfs
     if ( href.isEmpty() )
     {
       QUrl url = request.url();
-      QUrlQuery q( url );
 
-      q.removeAllQueryItems( QStringLiteral( "REQUEST" ) );
-      q.removeAllQueryItems( QStringLiteral( "VERSION" ) );
-      q.removeAllQueryItems( QStringLiteral( "SERVICE" ) );
-      q.removeAllQueryItems( QStringLiteral( "_DC" ) );
+      QgsWfsParameters params;
+      params.load( QUrlQuery( url ) );
+      params.remove( QgsServerParameter::REQUEST );
+      params.remove( QgsServerParameter::VERSION_SERVICE );
+      params.remove( QgsServerParameter::SERVICE );
 
-      url.setQuery( q );
-      href = url.toString( QUrl::FullyDecoded );
+      url.setQuery( params.urlQuery() );
+      href = url.toString();
     }
 
     return  href;

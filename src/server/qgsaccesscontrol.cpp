@@ -20,11 +20,10 @@
 #include "qgsmaplayer.h"
 #include "qgsvectorlayer.h"
 
-#include <QStringList>
 
 void QgsAccessControl::resolveFilterFeatures( const QList<QgsMapLayer *> &layers )
 {
-  Q_FOREACH ( QgsMapLayer *l, layers )
+  for ( QgsMapLayer *l : layers )
   {
     if ( l->type() == QgsMapLayer::LayerType::VectorLayer )
     {

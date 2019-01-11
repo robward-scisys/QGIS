@@ -196,6 +196,16 @@ void QgsRendererPropertiesDialog::setMapCanvas( QgsMapCanvas *canvas )
   }
 }
 
+void QgsRendererPropertiesDialog::setContext( const QgsSymbolWidgetContext &context )
+{
+  mMapCanvas = context.mapCanvas();
+  mMessageBar = context.messageBar();
+  if ( mActiveWidget )
+  {
+    mActiveWidget->setContext( context );
+  }
+}
+
 void QgsRendererPropertiesDialog::setDockMode( bool dockMode )
 {
   mDockMode = dockMode;
@@ -209,7 +219,7 @@ void QgsRendererPropertiesDialog::rendererChanged()
 {
   if ( cboRenderers->currentIndex() == -1 )
   {
-    QgsDebugMsg( "No current item -- this should never happen!" );
+    QgsDebugMsg( QStringLiteral( "No current item -- this should never happen!" ) );
     return;
   }
 
@@ -249,10 +259,11 @@ void QgsRendererPropertiesDialog::rendererChanged()
     stackedWidget->setCurrentWidget( mActiveWidget );
     if ( mActiveWidget->renderer() )
     {
-      if ( mMapCanvas )
+      if ( mMapCanvas || mMessageBar )
       {
         QgsSymbolWidgetContext context;
         context.setMapCanvas( mMapCanvas );
+        context.setMessageBar( mMessageBar );
         mActiveWidget->setContext( context );
       }
       changeOrderBy( mActiveWidget->renderer()->orderBy(), mActiveWidget->renderer()->orderByEnabled() );
@@ -305,15 +316,15 @@ void QgsRendererPropertiesDialog::onOK()
 
 void QgsRendererPropertiesDialog::openPanel( QgsPanelWidget *panel )
 {
-  QgsDebugMsg( "Open panel!!!" );
+  QgsDebugMsg( QStringLiteral( "Open panel!!!" ) );
   if ( mDockMode )
   {
-    QgsDebugMsg( "DOCK MODE" );
+    QgsDebugMsg( QStringLiteral( "DOCK MODE" ) );
     emit showPanel( panel );
   }
   else
   {
-    QgsDebugMsg( "DIALOG MODE" );
+    QgsDebugMsg( QStringLiteral( "DIALOG MODE" ) );
     // Show the dialog version if no one is connected
     QDialog *dlg = new QDialog();
     QString key = QStringLiteral( "/UI/paneldialog/%1" ).arg( panel->panelTitle() );

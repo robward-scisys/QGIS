@@ -27,8 +27,8 @@
 #include <QTextCharFormat>
 #include <QCalendarWidget>
 
-QgsDateTimeEditWrapper::QgsDateTimeEditWrapper( QgsVectorLayer *vl, int fieldIdx, QWidget *editor, QWidget *parent )
-  : QgsEditorWidgetWrapper( vl, fieldIdx, editor, parent )
+QgsDateTimeEditWrapper::QgsDateTimeEditWrapper( QgsVectorLayer *layer, int fieldIdx, QWidget *editor, QWidget *parent )
+  : QgsEditorWidgetWrapper( layer, fieldIdx, editor, parent )
 
 {
 }
@@ -58,7 +58,7 @@ void QgsDateTimeEditWrapper::initWidget( QWidget *editor )
 
   if ( !mQDateTimeEdit )
   {
-    QgsDebugMsg( "Date/time edit widget could not be initialized because provided widget is not a QDateTimeEdit." );
+    QgsDebugMsg( QStringLiteral( "Date/time edit widget could not be initialized because provided widget is not a QDateTimeEdit." ) );
     QgsMessageLog::logMessage( tr( "Date/time edit widget could not be initialized because provided widget is not a QDateTimeEdit." ), tr( "UI forms" ), Qgis::Warning );
     return;
   }

@@ -155,7 +155,7 @@ QValidator::State QgsFieldValidator::validate( QString &s, int &i ) const
   }
   else
   {
-    QgsDebugMsg( QString( "unsupported type %1 for validation" ).arg( mField.type() ) );
+    QgsDebugMsg( QStringLiteral( "unsupported type %1 for validation" ).arg( mField.type() ) );
     return Invalid;
   }
 
@@ -176,6 +176,6 @@ void QgsFieldValidator::fixup( QString &s ) const
   else if ( mField.type() == QVariant::Date )
   {
     // invalid dates will also translate to NULL
-    s = QLatin1String( "" );
+    s = QString();
   }
 }

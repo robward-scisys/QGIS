@@ -71,6 +71,10 @@ if type -p cygpath >/dev/null; then
 	ASTYLEOPTS="$(cygpath -w "$ASTYLEOPTS")"
 fi
 
+if type -p wslpath >/dev/null; then
+	ASTYLEOPTS="$(wslpath -a -w "$ASTYLEOPTS")"
+fi
+
 set -e
 
 astyleit() {
@@ -85,12 +89,12 @@ astyleit() {
 
 for f in "$@"; do
 	case "$f" in
-                src/plugins/grass/qtermwidget/*|external/o2/*|external/astyle/*|external/kdbush/*|python/ext-libs/*|ui_*.py|*.astyle|tests/testdata/*|editors/*)
+                src/plugins/grass/qtermwidget/*|external/o2/*|external/astyle/*|external/kdbush/*|external/wintoast/*|external/qt3dextra-headers/*|python/ext-libs/*|ui_*.py|*.astyle|tests/testdata/*|editors/*)
 			echo -ne "$f skipped $elcr"
 			continue
 			;;
 
-		*.cpp|*.h|*.c|*.cxx|*.hxx|*.c++|*.h++|*.cc|*.hh|*.C|*.H|*.hpp)
+		*.cpp|*.h|*.c|*.cxx|*.hxx|*.c++|*.h++|*.cc|*.hh|*.C|*.H|*.hpp|*.mm)
 			if [ -x "$f" ]; then
 				chmod a-x "$f"
 			fi

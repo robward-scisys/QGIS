@@ -19,7 +19,6 @@
 #include "qgsattributeeditorcontext.h"
 #include "qgsproject.h"
 #include "qgsrelationmanager.h"
-
 #include <QWidget>
 
 QgsRelationWidgetWrapper::QgsRelationWidgetWrapper( QgsVectorLayer *vl, const QgsRelation &relation, QWidget *editor, QWidget *parent )
@@ -48,6 +47,23 @@ void QgsRelationWidgetWrapper::setVisible( bool visible )
 
 void QgsRelationWidgetWrapper::aboutToSave()
 {
+  if ( !mRelation.isValid() || !widget() || !widget()->isVisible() || mRelation.referencingLayer() ==  mRelation.referencedLayer() )
+    return;
+
+  // If the layer is already saved before, return
+  const QgsAttributeEditorContext *ctx = &context();
+  do
+  {
+    if ( ctx->relation().isValid() && ( ctx->relation().referencedLayer() == mRelation.referencingLayer()
+                                        || ( mNmRelation.isValid() && ctx->relation().referencedLayer() == mNmRelation.referencedLayer() ) )
+       )
+    {
+      return;
+    }
+    ctx = ctx->parentContext();
+  }
+  while ( ctx );
+
   // Calling isModified() will emit a beforeModifiedCheck()
   // signal that will make the embedded form to send any
   // outstanding widget changes to the edit buffer
@@ -122,7 +138,6 @@ void QgsRelationWidgetWrapper::initWidget( QWidget *editor )
     ctx = ctx->parentContext();
   }
   while ( ctx );
-
 
   w->setRelations( mRelation, mNmRelation );
 

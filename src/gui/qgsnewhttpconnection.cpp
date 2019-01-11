@@ -18,6 +18,7 @@
 #include "qgsauthsettingswidget.h"
 #include "qgssettings.h"
 #include "qgshelp.h"
+#include "qgsgui.h"
 
 #include <QMessageBox>
 #include <QUrl>
@@ -32,6 +33,9 @@ QgsNewHttpConnection::QgsNewHttpConnection( QWidget *parent, ConnectionTypes typ
   , mOriginalConnName( connectionName )
 {
   setupUi( this );
+
+  QgsGui::enableAutoGeometryRestore( this );
+
   connect( buttonBox, &QDialogButtonBox::helpRequested, this, &QgsNewHttpConnection::showHelp );
 
   QRegExp rx( "/connections-([^/]+)/" );
@@ -49,7 +53,7 @@ QgsNewHttpConnection::QgsNewHttpConnection( QWidget *parent, ConnectionTypes typ
   // but for some strange reason a different hardcoded key was used instead.
   // WFS and WMS credentials were mixed with the same key WMS.
   // Only WMS and WFS providers are using QgsNewHttpConnection at this moment
-  // using connection-wms and connection-wfs -> parse credential key fro it.
+  // using connection-wms and connection-wfs -> parse credential key from it.
   mCredentialsBaseKey = mBaseKey.split( '-' ).last().toUpper();
 
   txtName->setValidator( new QRegExpValidator( QRegExp( "[^\\/]+" ), txtName ) );

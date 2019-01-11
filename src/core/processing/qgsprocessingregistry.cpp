@@ -24,6 +24,7 @@ QgsProcessingRegistry::QgsProcessingRegistry( QObject *parent SIP_TRANSFERTHIS )
 {
   addParameterType( new QgsProcessingParameterTypeRasterLayer() );
   addParameterType( new QgsProcessingParameterTypeVectorLayer() );
+  addParameterType( new QgsProcessingParameterTypeMeshLayer() );
   addParameterType( new QgsProcessingParameterTypeMapLayer() );
   addParameterType( new QgsProcessingParameterTypeBoolean() );
   addParameterType( new QgsProcessingParameterTypeExpression() );
@@ -40,6 +41,7 @@ QgsProcessingRegistry::QgsProcessingRegistry( QObject *parent SIP_TRANSFERTHIS )
   addParameterType( new QgsProcessingParameterTypeFileDestination() );
   addParameterType( new QgsProcessingParameterTypeFolderDestination() );
   addParameterType( new QgsProcessingParameterTypeString() );
+  addParameterType( new QgsProcessingParameterTypeAuthConfig() );
   addParameterType( new QgsProcessingParameterTypeMultipleLayers() );
   addParameterType( new QgsProcessingParameterTypeFeatureSource() );
   addParameterType( new QgsProcessingParameterTypeNumber() );
@@ -140,7 +142,7 @@ const QgsProcessingAlgorithm *QgsProcessingRegistry::algorithmById( const QStrin
   // try mapping 'qgis' algs to 'native' algs - this allows us to freely move algorithms
   // from the python 'qgis' provider to the c++ 'native' provider without breaking API
   // or existing models
-  if ( id.startsWith( QStringLiteral( "qgis:" ) ) )
+  if ( id.startsWith( QLatin1String( "qgis:" ) ) )
   {
     QString newId = QStringLiteral( "native:" ) + id.mid( 5 );
     return algorithmById( newId );

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""QGIS Unit tests for QgsServer WMS.
+"""QGIS Unit tests for QgsServer WMS GetMap.
 
-From build dir, run: ctest -R PyQgsServerWMS -V
+From build dir, run: ctest -R PyQgsServerWMSGetMap -V
 
 
 .. note:: This program is free software; you can redistribute it and/or modify
@@ -41,8 +41,9 @@ RE_ATTRIBUTES = b'[^>\s]+=[^>\s]+'
 
 
 class TestQgsServerWMSGetMap(QgsServerTestBase):
-
     """QGIS Server WMS Tests for GetMap request"""
+
+    #regenerate_reference = True
 
     def test_wms_getmap_basic_mode(self):
         # 1 bits
@@ -184,6 +185,24 @@ class TestQgsServerWMSGetMap(QgsServerTestBase):
 
         r, h = self._result(self._execute_request(qs))
         self._img_diff_error(r, h, "WMS_GetMap_Basic4")
+
+    def test_wms_getmap_complex_labeling(self):
+        qs = "?" + "&".join(["%s=%s" % i for i in list({
+            "MAP": urllib.parse.quote(self.projectPath),
+            "SERVICE": "WMS",
+            "VERSION": "1.1.1",
+            "REQUEST": "GetMap",
+            "LAYERS": "pointlabel",
+            "STYLES": "",
+            "FORMAT": "image/png",
+            "BBOX": "-16817707,-4710778,5696513,14587125",
+            "HEIGHT": "500",
+            "WIDTH": "500",
+            "CRS": "EPSG:3857"
+        }.items())])
+
+        r, h = self._result(self._execute_request(qs))
+        self._img_diff_error(r, h, "WMS_GetMap_Labeling_Complex")
 
     def test_wms_getmap_context_rendering(self):
         project = os.path.join(self.testdata_path, "test_project_render_context.qgs")
@@ -337,7 +356,7 @@ class TestQgsServerWMSGetMap(QgsServerTestBase):
         err = b"cannot be converted into a rectangle" in r
         self.assertTrue(err)
 
-        # opacities should be a list of int
+        # opacities should be a list of int
         qs = "?" + "&".join(["%s=%s" % i for i in list({
             "MAP": urllib.parse.quote(self.projectPath),
             "SERVICE": "WMS",
@@ -800,6 +819,125 @@ class TestQgsServerWMSGetMap(QgsServerTestBase):
         r, h = self._result(self._execute_request(qs))
         self._img_diff_error(r, h, "WMS_GetMap_Filter_OGC")
 
+    def test_wms_getmap_filter_ogc_with_empty(self):
+        filter = "(<Filter><PropertyIsEqualTo><PropertyName>name</PropertyName>" + \
+                 "<Literal>eurasia</Literal></PropertyIsEqualTo></Filter>)()"
+        qs = "?" + "&".join(["%s=%s" % i for i in list({
+            "MAP": urllib.parse.quote(self.projectPath),
+            "SERVICE": "WMS",
+            "VERSION": "1.1.1",
+            "REQUEST": "GetMap",
+            "LAYERS": "Country,Hello",
+            "STYLES": "",
+            "FORMAT": "image/png",
+            "BBOX": "-16817707,-4710778,5696513,14587125",
+            "HEIGHT": "500",
+            "WIDTH": "500",
+            "CRS": "EPSG:3857",
+            "FILTER": filter
+        }.items())])
+
+        r, h = self._result(self._execute_request(qs))
+        self._img_diff_error(r, h, "WMS_GetMap_Filter_OGC")
+
+        # empty filter
+        filter = ("(<ogc:Filter xmlns=\"http://www.opengis.net/ogc\">"
+                  "</ogc:Filter>)")
+        qs = "?" + "&".join(["%s=%s" % i for i in list({
+            "MAP": urllib.parse.quote(self.projectPath),
+            "SERVICE": "WMS",
+            "VERSION": "1.1.1",
+            "REQUEST": "GetMap",
+            "LAYERS": "Country,Hello",
+            "STYLES": "",
+            "FORMAT": "image/png",
+            "BBOX": "-16817707,-4710778,5696513,14587125",
+            "HEIGHT": "500",
+            "WIDTH": "500",
+            "CRS": "EPSG:3857",
+            "FILTER": filter
+        }.items())])
+
+        r, h = self._result(self._execute_request(qs))
+        self._img_diff_error(r, h, "WMS_GetMap_Filter_OGC2")
+
+        # filter on the second layer
+        filter_hello = ("(<Filter></Filter>)")
+        filter_country = ("(<Filter><PropertyIsEqualTo><PropertyName>name"
+                          "</PropertyName><Literal>eurasia</Literal>"
+                          "</PropertyIsEqualTo></Filter>)")
+        filter = "{}{}".format(filter_hello, filter_country)
+        qs = "?" + "&".join(["%s=%s" % i for i in list({
+            "MAP": urllib.parse.quote(self.projectPath),
+            "SERVICE": "WMS",
+            "VERSION": "1.1.1",
+            "REQUEST": "GetMap",
+            "LAYERS": "Hello,Country",
+            "STYLES": "",
+            "FORMAT": "image/png",
+            "BBOX": "-16817707,-4710778,5696513,14587125",
+            "HEIGHT": "500",
+            "WIDTH": "500",
+            "CRS": "EPSG:3857",
+            "FILTER": filter
+        }.items())])
+
+        r, h = self._result(self._execute_request(qs))
+        self._img_diff_error(r, h, "WMS_GetMap_Filter_OGC3")
+
+    def test_wms_getmap_filter_ogc_v2(self):
+        # with namespace
+        filter = ('<fes:Filter xmlns:fes=\"http://www.opengis.net/fes/2.0\">'
+                  '<fes:PropertyIsEqualTo>'
+                  '<fes:ValueReference>name</fes:ValueReference>'
+                  '<fes:Literal>eurasia</fes:Literal>'
+                  '</fes:PropertyIsEqualTo>'
+                  '</fes:Filter>')
+
+        qs = "?" + "&".join(["%s=%s" % i for i in list({
+            "MAP": urllib.parse.quote(self.projectPath),
+            "SERVICE": "WMS",
+            "VERSION": "1.1.1",
+            "REQUEST": "GetMap",
+            "LAYERS": "Country,Hello",
+            "STYLES": "",
+            "FORMAT": "image/png",
+            "BBOX": "-16817707,-4710778,5696513,14587125",
+            "HEIGHT": "500",
+            "WIDTH": "500",
+            "CRS": "EPSG:3857",
+            "FILTER": filter
+        }.items())])
+
+        r, h = self._result(self._execute_request(qs))
+        self._img_diff_error(r, h, "WMS_GetMap_Filter_OGC_V2")
+
+        # without namespace (only with prefix)
+        filter = ('<fes:Filter>'
+                  '<fes:PropertyIsEqualTo>'
+                  '<fes:ValueReference>name</fes:ValueReference>'
+                  '<fes:Literal>eurasia</fes:Literal>'
+                  '</fes:PropertyIsEqualTo>'
+                  '</fes:Filter>')
+
+        qs = "?" + "&".join(["%s=%s" % i for i in list({
+            "MAP": urllib.parse.quote(self.projectPath),
+            "SERVICE": "WMS",
+            "VERSION": "1.1.1",
+            "REQUEST": "GetMap",
+            "LAYERS": "Country,Hello",
+            "STYLES": "",
+            "FORMAT": "image/png",
+            "BBOX": "-16817707,-4710778,5696513,14587125",
+            "HEIGHT": "500",
+            "WIDTH": "500",
+            "CRS": "EPSG:3857",
+            "FILTER": filter
+        }.items())])
+
+        r, h = self._result(self._execute_request(qs))
+        self._img_diff_error(r, h, "WMS_GetMap_Filter_OGC_V2")
+
     def test_wms_getmap_selection(self):
         qs = "?" + "&".join(["%s=%s" % i for i in list({
             "MAP": urllib.parse.quote(self.projectPath),
@@ -919,6 +1057,57 @@ class TestQgsServerWMSGetMap(QgsServerTestBase):
         r, h = self._result(self._execute_request(qs))
         self._img_diff_error(r, h, "WMS_GetMap_Highlight")
 
+    def test_wms_getmap_highlight_point(self):
+        # checks SLD stroke-width works for Points See issue 19795 comments
+        qs = "?" + "&".join(["%s=%s" % i for i in list({
+            "MAP": urllib.parse.quote(self.projectPath),
+            "SERVICE": "WMS",
+            "VERSION": "1.1.1",
+            "REQUEST": "GetMap",
+            "LAYERS": "Country_Labels",
+            "HIGHLIGHT_GEOM": "POINT(-6250000 8055310)",
+            "HIGHLIGHT_SYMBOL": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><StyledLayerDescriptor xmlns=\"http://www.opengis.net/sld\" xmlns:ogc=\"http://www.opengis.net/ogc\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" version=\"1.1.0\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" xsi:schemaLocation=\"http://www.opengis.net/sld http://schemas.opengis.net/sld/1.1.0/StyledLayerDescriptor.xsd\" xmlns:se=\"http://www.opengis.net/se\"><UserStyle><se:FeatureTypeStyle><se:Rule><se:PointSymbolizer><se:Graphic><se:Mark><se:WellKnownName>circle</se:WellKnownName><se:Stroke><se:SvgParameter name=\"stroke\">%23ff0000</se:SvgParameter><se:SvgParameter name=\"stroke-opacity\">1</se:SvgParameter><se:SvgParameter name=\"stroke-width\">7.5</se:SvgParameter></se:Stroke><se:Fill><se:SvgParameter name=\"fill\">%237bdcb5</se:SvgParameter><se:SvgParameter name=\"fill-opacity\">1</se:SvgParameter></se:Fill></se:Mark><se:Size>28.4</se:Size></se:Graphic></se:PointSymbolizer></se:Rule></se:FeatureTypeStyle></UserStyle></StyledLayerDescriptor>",
+            "HIGHLIGHT_LABELSTRING": "Highlight Point :)",
+            "HIGHLIGHT_LABELSIZE": "16",
+            "HIGHLIGHT_LABELCOLOR": "%2300FF0000",
+            "HIGHLIGHT_LABELBUFFERCOLOR": "%232300FF00",
+            "HIGHLIGHT_LABELBUFFERSIZE": "1.2",
+            "STYLES": "",
+            "FORMAT": "image/png",
+            "BBOX": "-16817707,-4710778,5696513,14587125",
+            "HEIGHT": "500",
+            "WIDTH": "500",
+            "CRS": "EPSG:3857"
+        }.items())])
+        r, h = self._result(self._execute_request(qs))
+        self._img_diff_error(r, h, "WMS_GetMap_Highlight_Point")
+
+    # TODO make Server Getmap work with SLD Highlight feature and enable test
+    def test_wms_getmap_highlight_line(self):
+        # checks SLD stroke-width works for Lines See issue 19795 comments
+        qs = "?" + "&".join(["%s=%s" % i for i in list({
+            "MAP": urllib.parse.quote(self.projectPath),
+            "SERVICE": "WMS",
+            "VERSION": "1.1.1",
+            "REQUEST": "GetMap",
+            "LAYERS": "Country_Labels",
+            "HIGHLIGHT_GEOM": "LINESTRING(-15000000 8055310, 2500000 8055310)",
+            "HIGHLIGHT_SYMBOL": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><StyledLayerDescriptor xmlns=\"http://www.opengis.net/sld\" xmlns:ogc=\"http://www.opengis.net/ogc\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" version=\"1.1.0\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" xsi:schemaLocation=\"http://www.opengis.net/sld http://schemas.opengis.net/sld/1.1.0/StyledLayerDescriptor.xsd\" xmlns:se=\"http://www.opengis.net/se\"><UserStyle><se:FeatureTypeStyle><se:Rule><se:LineSymbolizer><se:Stroke><se:SvgParameter name=\"stroke\">%23ff0000</se:SvgParameter><se:SvgParameter name=\"stroke-opacity\">1</se:SvgParameter><se:SvgParameter name=\"stroke-width\">17.3</se:SvgParameter><se:SvgParameter name=\"stroke-linecap\">round</se:SvgParameter></se:Stroke></se:LineSymbolizer></se:Rule></se:FeatureTypeStyle></UserStyle></StyledLayerDescriptor>",
+            "HIGHLIGHT_LABELSTRING": "",
+            "HIGHLIGHT_LABELSIZE": "10",
+            "HIGHLIGHT_LABELCOLOR": "black",
+            "HIGHLIGHT_LABELBUFFERCOLOR": "white",
+            "HIGHLIGHT_LABELBUFFERSIZE": "1",
+            "STYLES": "",
+            "FORMAT": "image/png",
+            "BBOX": "-16817707,-4710778,5696513,14587125",
+            "HEIGHT": "500",
+            "WIDTH": "500",
+            "CRS": "EPSG:3857"
+        }.items())])
+        r, h = self._result(self._execute_request(qs))
+        self._img_diff_error(r, h, "WMS_GetMap_Highlight_Line")
+
     def test_wms_getmap_annotations(self):
         qs = "?" + "&".join(["%s=%s" % i for i in list({
             "MAP": urllib.parse.quote(self.projectAnnotationPath),
@@ -938,6 +1127,21 @@ class TestQgsServerWMSGetMap(QgsServerTestBase):
         self._img_diff_error(r, h, "WMS_GetMap_Annotations")
 
     def test_wms_getmap_sld(self):
+        import socketserver
+        import threading
+        import http.server
+
+        # Bring up a simple HTTP server
+        os.chdir(unitTestDataPath() + '')
+        handler = http.server.SimpleHTTPRequestHandler
+
+        httpd = socketserver.TCPServer(('localhost', 0), handler)
+        port = httpd.server_address[1]
+
+        httpd_thread = threading.Thread(target=httpd.serve_forever)
+        httpd_thread.setDaemon(True)
+        httpd_thread.start()
+
         qs = "?" + "&".join(["%s=%s" % i for i in list({
             "MAP": urllib.parse.quote(self.projectPath),
             "SERVICE": "WMS",
@@ -960,7 +1164,62 @@ class TestQgsServerWMSGetMap(QgsServerTestBase):
             "REQUEST": "GetMap",
             "VERSION": "1.1.1",
             "SERVICE": "WMS",
-            "SLD": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><StyledLayerDescriptor xmlns=\"http://www.opengis.net/sld\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:ogc=\"http://www.opengis.net/ogc\" xsi:schemaLocation=\"http://www.opengis.net/sld http://schemas.opengis.net/sld/1.1.0/StyledLayerDescriptor.xsd\" version=\"1.1.0\" xmlns:se=\"http://www.opengis.net/se\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"> <NamedLayer> <se:Name>db_point</se:Name> <UserStyle> <se:Name>db_point_style</se:Name> <se:FeatureTypeStyle> <se:Rule> <se:Name>Single symbol</se:Name> <ogc:Filter xmlns:ogc=\"http://www.opengis.net/ogc\"> <ogc:PropertyIsEqualTo> <ogc:PropertyName>gid</ogc:PropertyName> <ogc:Literal>1</ogc:Literal> </ogc:PropertyIsEqualTo> </ogc:Filter> <se:PointSymbolizer uom=\"http://www.opengeospatial.org/se/units/metre\"> <se:Graphic> <se:Mark> <se:WellKnownName>square</se:WellKnownName> <se:Fill> <se:SvgParameter name=\"fill\">5e86a1</se:SvgParameter> </se:Fill> <se:Stroke> <se:SvgParameter name=\"stroke\">000000</se:SvgParameter> </se:Stroke> </se:Mark> <se:Size>0.007</se:Size> </se:Graphic> </se:PointSymbolizer> </se:Rule> </se:FeatureTypeStyle> </UserStyle> </NamedLayer> </StyledLayerDescriptor>",
+            "SLD": "http://localhost:" + str(port) + "/qgis_local_server/db_point.sld",
+            "BBOX": "-16817707,-4710778,5696513,14587125",
+            "WIDTH": "500",
+            "HEIGHT": "500",
+            "LAYERS": "db_point",
+            "STYLES": "",
+            "FORMAT": "image/png",
+            "CRS": "EPSG:3857"
+        }.items())])
+
+        r, h = self._result(self._execute_request(qs))
+        self._img_diff_error(r, h, "WMS_GetMap_SLD")
+
+        qs = "?" + "&".join(["%s=%s" % i for i in list({
+            "MAP": urllib.parse.quote(self.projectPath),
+            "SERVICE": "WMS",
+            "VERSION": "1.1.1",
+            "REQUEST": "GetMap",
+            "LAYERS": "Country,db_point",
+            "STYLES": "",
+            "FORMAT": "image/png",
+            "BBOX": "-16817707,-4710778,5696513,14587125",
+            "HEIGHT": "500",
+            "WIDTH": "500",
+            "CRS": "EPSG:3857"
+        }.items())])
+
+        r, h = self._result(self._execute_request(qs))
+        self._img_diff_error(r, h, "WMS_GetMap_SLDRestored")
+
+        httpd.server_close()
+
+    def test_wms_getmap_sld_body(self):
+        qs = "?" + "&".join(["%s=%s" % i for i in list({
+            "MAP": urllib.parse.quote(self.projectPath),
+            "SERVICE": "WMS",
+            "VERSION": "1.1.1",
+            "REQUEST": "GetMap",
+            "LAYERS": "Country,db_point",
+            "STYLES": "",
+            "FORMAT": "image/png",
+            "BBOX": "-16817707,-4710778,5696513,14587125",
+            "HEIGHT": "500",
+            "WIDTH": "500",
+            "CRS": "EPSG:3857"
+        }.items())])
+
+        r, h = self._result(self._execute_request(qs))
+        self._img_diff_error(r, h, "WMS_GetMap_SLDRestored")
+
+        qs = "?" + "&".join(["%s=%s" % i for i in list({
+            "MAP": urllib.parse.quote(self.projectPath),
+            "REQUEST": "GetMap",
+            "VERSION": "1.1.1",
+            "SERVICE": "WMS",
+            "SLD_BODY": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><StyledLayerDescriptor xmlns=\"http://www.opengis.net/sld\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:ogc=\"http://www.opengis.net/ogc\" xsi:schemaLocation=\"http://www.opengis.net/sld http://schemas.opengis.net/sld/1.1.0/StyledLayerDescriptor.xsd\" version=\"1.1.0\" xmlns:se=\"http://www.opengis.net/se\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"> <NamedLayer> <se:Name>db_point</se:Name> <UserStyle> <se:Name>db_point_style</se:Name> <se:FeatureTypeStyle> <se:Rule> <se:Name>Single symbol</se:Name> <ogc:Filter xmlns:ogc=\"http://www.opengis.net/ogc\"> <ogc:PropertyIsEqualTo> <ogc:PropertyName>gid</ogc:PropertyName> <ogc:Literal>1</ogc:Literal> </ogc:PropertyIsEqualTo> </ogc:Filter> <se:PointSymbolizer uom=\"http://www.opengeospatial.org/se/units/metre\"> <se:Graphic> <se:Mark> <se:WellKnownName>square</se:WellKnownName> <se:Fill> <se:SvgParameter name=\"fill\">5e86a1</se:SvgParameter> </se:Fill> <se:Stroke> <se:SvgParameter name=\"stroke\">000000</se:SvgParameter> </se:Stroke> </se:Mark> <se:Size>0.007</se:Size> </se:Graphic> </se:PointSymbolizer> </se:Rule> </se:FeatureTypeStyle> </UserStyle> </NamedLayer> </StyledLayerDescriptor>",
             "BBOX": "-16817707,-4710778,5696513,14587125",
             "WIDTH": "500",
             "HEIGHT": "500",
@@ -1042,7 +1301,25 @@ class TestQgsServerWMSGetMap(QgsServerTestBase):
             "SERVICE": "WMS",
             "VERSION": "1.1.1",
             "REQUEST": "GetMap",
-            "SLD": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><StyledLayerDescriptor xmlns=\"http://www.opengis.net/sld\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:ogc=\"http://www.opengis.net/ogc\" xsi:schemaLocation=\"http://www.opengis.net/sld http://schemas.opengis.net/sld/1.1.0/StyledLayerDescriptor.xsd\" version=\"1.1.0\" xmlns:se=\"http://www.opengis.net/se\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"> <NamedLayer> <se:Name>CountryGroup</se:Name></NamedLayer> </StyledLayerDescriptor>",
+            "LAYERS": "group_short_name",
+            "STYLES": "",
+            "FORMAT": "image/png",
+            "BBOX": "-16817707,-4710778,5696513,14587125",
+            "HEIGHT": "500",
+            "WIDTH": "500",
+            "CRS": "EPSG:3857"
+        }.items())])
+
+        r_group, _ = self._result(self._execute_request(qs))
+
+        self.assertEqual(r_individual, r_group, 'Individual layers query and group layers query with short name results should be identical')
+
+        qs = "?" + "&".join(["%s=%s" % i for i in list({
+            "MAP": urllib.parse.quote(self.projectGroupsPath),
+            "SERVICE": "WMS",
+            "VERSION": "1.1.1",
+            "REQUEST": "GetMap",
+            "SLD_BODY": "<?xml version=\"1.0\" encoding=\"UTF-8\"?><StyledLayerDescriptor xmlns=\"http://www.opengis.net/sld\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:ogc=\"http://www.opengis.net/ogc\" xsi:schemaLocation=\"http://www.opengis.net/sld http://schemas.opengis.net/sld/1.1.0/StyledLayerDescriptor.xsd\" version=\"1.1.0\" xmlns:se=\"http://www.opengis.net/se\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"> <NamedLayer> <se:Name>CountryGroup</se:Name></NamedLayer> </StyledLayerDescriptor>",
             "STYLES": "",
             "FORMAT": "image/png",
             "BBOX": "-16817707,-4710778,5696513,14587125",
@@ -1053,6 +1330,50 @@ class TestQgsServerWMSGetMap(QgsServerTestBase):
 
         r_group_sld, _ = self._result(self._execute_request(qs))
         self.assertEqual(r_individual, r_group_sld, 'Individual layers query and SLD group layers query results should be identical')
+
+    def test_wms_getmap_group_regression_20810(self):
+        """A WMS shall render the requested layers by drawing the leftmost in the list
+        bottommost, the next one over that, and so on. Even if the layers are inside groups."""
+
+        qs = "?" + "&".join(["%s=%s" % i for i in list({
+            "MAP": urllib.parse.quote(os.path.join(self.testdata_path, 'test_project_wms_grouped_layers.qgs')),
+            "SERVICE": "WMS",
+            "VERSION": "1.3.0",
+            "REQUEST": "GetMap",
+            "BBOX": "613402.5658687877003,5809005.018114360981,619594.408781287726,5813869.006602735259",
+            "CRS": "EPSG:25832",
+            "WIDTH": "429",
+            "HEIGHT": "337",
+            "LAYERS": "osm,areas and symbols",
+            "STYLES": ",",
+            "FORMAT": "image/png",
+            "DPI": "200",
+            "MAP_RESOLUTION": "200",
+            "FORMAT_OPTIONS": "dpi:200"
+        }.items())])
+
+        r, h = self._result(self._execute_request(qs))
+        self._img_diff_error(r, h, "WMS_GetMap_GroupedLayersUp")
+
+        qs = "?" + "&".join(["%s=%s" % i for i in list({
+            "MAP": urllib.parse.quote(os.path.join(self.testdata_path, 'test_project_wms_grouped_layers.qgs')),
+            "SERVICE": "WMS",
+            "VERSION": "1.3.0",
+            "REQUEST": "GetMap",
+            "BBOX": "613402.5658687877003,5809005.018114360981,619594.408781287726,5813869.006602735259",
+            "CRS": "EPSG:25832",
+            "WIDTH": "429",
+            "HEIGHT": "337",
+            "LAYERS": "areas and symbols,osm",
+            "STYLES": ",",
+            "FORMAT": "image/png",
+            "DPI": "200",
+            "MAP_RESOLUTION": "200",
+            "FORMAT_OPTIONS": "dpi:200"
+        }.items())])
+
+        r, h = self._result(self._execute_request(qs))
+        self._img_diff_error(r, h, "WMS_GetMap_GroupedLayersDown")
 
 
 if __name__ == '__main__':

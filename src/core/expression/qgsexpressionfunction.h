@@ -21,6 +21,8 @@
 #include <QString>
 #include <QVariant>
 #include <QSet>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include "qgis.h"
 #include "qgis_core.h"
@@ -496,6 +498,52 @@ class QgsStaticExpressionFunction : public QgsExpressionFunction
     std::function < bool( const QgsExpressionNodeFunction *node,  QgsExpression *parent, const QgsExpressionContext *context ) > mPrepareFunc;
     QSet<QString> mReferencedColumns;
     bool mIsStatic = false;
+};
+
+/**
+ * Handles the ``array_foreach(array, expression)`` expression function.
+ * It temporarily appends a new scope to the expression context.
+ *
+ * \ingroup core
+ * \note Not available in Python bindings
+ * \since QGIS 3.4
+ */
+class QgsArrayForeachExpressionFunction : public QgsExpressionFunction
+{
+  public:
+    QgsArrayForeachExpressionFunction();
+
+    bool isStatic( const QgsExpressionNodeFunction *node, QgsExpression *parent, const QgsExpressionContext *context ) const override;
+
+    QVariant run( QgsExpressionNode::NodeList *args, const QgsExpressionContext *context, QgsExpression *parent, const QgsExpressionNodeFunction *node ) override;
+
+    QVariant func( const QVariantList &values, const QgsExpressionContext *context, QgsExpression *parent, const QgsExpressionNodeFunction *node ) override;
+
+    bool prepare( const QgsExpressionNodeFunction *node, QgsExpression *parent, const QgsExpressionContext *context ) const override;
+
+};
+
+/**
+ * Handles the ``array_filter(array, expression)`` expression function.
+ * It temporarily appends a new scope to the expression context.
+ *
+ * \ingroup core
+ * \note Not available in Python bindings
+ * \since QGIS 3.4
+ */
+class QgsArrayFilterExpressionFunction : public QgsExpressionFunction
+{
+  public:
+    QgsArrayFilterExpressionFunction();
+
+    bool isStatic( const QgsExpressionNodeFunction *node, QgsExpression *parent, const QgsExpressionContext *context ) const override;
+
+    QVariant run( QgsExpressionNode::NodeList *args, const QgsExpressionContext *context, QgsExpression *parent, const QgsExpressionNodeFunction *node ) override;
+
+    QVariant func( const QVariantList &values, const QgsExpressionContext *context, QgsExpression *parent, const QgsExpressionNodeFunction *node ) override;
+
+    bool prepare( const QgsExpressionNodeFunction *node, QgsExpression *parent, const QgsExpressionContext *context ) const override;
+
 };
 
 /**

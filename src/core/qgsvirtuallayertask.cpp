@@ -17,6 +17,7 @@
 
 #include "qgsvirtuallayertask.h"
 #include "qgslogger.h"
+#include "qgsvectorlayer.h"
 
 QgsVirtualLayerTask::QgsVirtualLayerTask( const QgsVirtualLayerDefinition &definition )
   : mDefinition( definition )
@@ -36,6 +37,7 @@ bool QgsVirtualLayerTask::run()
   catch ( std::exception &e )
   {
     QgsDebugMsg( QStringLiteral( "Reload error: %1" ).arg( e.what() ) );
+    setExceptionText( e.what() );
     rc = false;
   }
   return rc;
@@ -60,4 +62,14 @@ void QgsVirtualLayerTask::cancel()
 {
   mLayer->dataProvider()->cancelReload();
   QgsTask::cancel();
+}
+
+QString QgsVirtualLayerTask::exceptionText() const
+{
+  return mExceptionText;
+}
+
+void QgsVirtualLayerTask::setExceptionText( const QString &exceptionText )
+{
+  mExceptionText = exceptionText;
 }

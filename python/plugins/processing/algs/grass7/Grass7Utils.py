@@ -106,7 +106,7 @@ class Grass7Utils:
             si.wShowWindow = subprocess.SW_HIDE
         with subprocess.Popen(
                 [Grass7Utils.command, '-v'],
-                shell=True if isMac() else False,
+                shell=False,
                 stdout=subprocess.PIPE,
                 stdin=subprocess.DEVNULL,
                 stderr=subprocess.STDOUT,
@@ -193,8 +193,11 @@ class Grass7Utils:
         if not isWindows() and not isMac():
             return ''
 
-        folder = ProcessingConfig.getSetting(Grass7Utils.GRASS_FOLDER) or ''
-        if not os.path.exists(folder):
+        if isMac():
+            folder = ProcessingConfig.getSetting(Grass7Utils.GRASS_FOLDER) or ''
+            if not os.path.exists(folder):
+                folder = None
+        else:
             folder = None
 
         if folder is None:
@@ -206,10 +209,9 @@ class Grass7Utils:
                     testfolder = str(QgsApplication.prefixPath())
                 testfolder = os.path.join(testfolder, 'grass')
                 if os.path.isdir(testfolder):
-                    for subfolder in os.listdir(testfolder):
-                        if subfolder.startswith('grass-7'):
-                            folder = os.path.join(testfolder, subfolder)
-                            break
+                    grassfolders = sorted([f for f in os.listdir(testfolder) if f.startswith("grass-7.") and os.path.isdir(os.path.join(testfolder, f))], reverse=True, key=lambda x: [int(v) for v in x[len("grass-"):].split('.')])
+                    if grassfolders:
+                        folder = os.path.join(testfolder, grassfolders[0])
             elif isMac():
                 # For MacOSX, we scan some well-known directories
                 # Start with QGIS bundle
@@ -330,6 +332,9 @@ class Grass7Utils:
         Prepare GRASS batch job in a script and
         returns it as a command ready for subprocess.
         """
+        if Grass7Utils.command is None:
+            Grass7Utils.grassBin()
+
         env = os.environ.copy()
         env['GRASS_MESSAGE_FORMAT'] = 'plain'
         if 'GISBASE' in env:
@@ -348,7 +353,7 @@ class Grass7Utils:
         loglines.append(Grass7Utils.tr('GRASS GIS 7 execution console output'))
         grassOutDone = False
         command, grassenv = Grass7Utils.prepareGrassExecution(commands)
-        #QgsMessageLog.logMessage('exec: {}'.format(command), 'DEBUG', Qgis.Info)
+        # QgsMessageLog.logMessage('exec: {}'.format(command), 'DEBUG', Qgis.Info)
 
         # For MS-Windows, we need to hide the console window.
         if isWindows():
@@ -358,12 +363,13 @@ class Grass7Utils:
 
         with subprocess.Popen(
                 command,
-                shell=True if isMac() else False,
+                shell=False,
                 stdout=subprocess.PIPE,
                 stdin=subprocess.DEVNULL,
                 stderr=subprocess.STDOUT,
                 universal_newlines=True,
                 env=grassenv,
+                encoding="cp{}".format(Grass7Utils.getWindowsCodePage()) if isWindows() else None,
                 startupinfo=si if isWindows() else None
         ) as proc:
             for line in iter(proc.stdout.readline, ''):
@@ -376,7 +382,16 @@ class Grass7Utils:
                     if 'r.out' in line or 'v.out' in line:
                         grassOutDone = True
                     loglines.append(line)
-                    feedback.pushConsoleInfo(line)
+                    if any([l in line for l in ['WARNING', 'ERROR']]):
+                        feedback.reportError(line.strip())
+                    elif 'Segmentation fault' in line:
+                        feedback.reportError(line.strip())
+                        feedback.reportError('\n' + Grass7Utils.tr('GRASS command crashed :( Try a different set of input parameters and consult the GRASS algorithm manual for more information.') + '\n')
+                        if ProcessingConfig.getSetting(Grass7Utils.GRASS_USE_VEXTERNAL):
+                            feedback.reportError(Grass7Utils.tr(
+                                'Suggest disabling the experimental "use v.external" option from the Processing GRASS Provider options.') + '\n')
+                    elif line.strip():
+                        feedback.pushConsoleInfo(line.strip())
 
         # Some GRASS scripts, like r.mapcalculator or r.fillnulls, call
         # other GRASS scripts during execution. This may override any
@@ -385,14 +400,20 @@ class Grass7Utils:
         # commands again.
         if not grassOutDone and outputCommands:
             command, grassenv = Grass7Utils.prepareGrassExecution(outputCommands)
+            # For MS-Windows, we need to hide the console window.
+            if isWindows():
+                si = subprocess.STARTUPINFO()
+                si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                si.wShowWindow = subprocess.SW_HIDE
             with subprocess.Popen(
                     command,
-                    shell=True if isMac() else False,
+                    shell=False,
                     stdout=subprocess.PIPE,
                     stdin=subprocess.DEVNULL,
                     stderr=subprocess.STDOUT,
                     universal_newlines=True,
                     env=grassenv,
+                    encoding="cp{}".format(Grass7Utils.getWindowsCodePage()) if isWindows() else None,
                     startupinfo=si if isWindows() else None
             ) as proc:
                 for line in iter(proc.stdout.readline, ''):
@@ -402,9 +423,12 @@ class Grass7Utils:
                                 line[len('GRASS_INFO_PERCENT') + 2:]))
                         except:
                             pass
-                    else:
-                        loglines.append(line)
-                        feedback.pushConsoleInfo(line)
+                    if any([l in line for l in ['WARNING', 'ERROR']]):
+                        loglines.append(line.strip())
+                        feedback.reportError(line.strip())
+                    elif line.strip():
+                        loglines.append(line.strip())
+                        feedback.pushConsoleInfo(line.strip())
 
         if ProcessingConfig.getSetting(Grass7Utils.GRASS_LOG_CONSOLE):
             QgsMessageLog.logMessage('\n'.join(loglines), 'Processing', Qgis.Info)

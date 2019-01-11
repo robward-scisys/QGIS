@@ -33,6 +33,12 @@ QgsLocatorFilter::Flags QgsLocatorFilter::flags() const
   return nullptr;
 }
 
+void QgsLocatorFilter::triggerResultFromAction( const QgsLocatorResult &result, const int actionId )
+{
+  Q_UNUSED( result );
+  Q_UNUSED( actionId );
+}
+
 bool QgsLocatorFilter::stringMatches( const QString &candidate, const QString &search )
 {
   return !search.isEmpty() && candidate.contains( search, Qt::CaseInsensitive );
@@ -70,6 +76,9 @@ void QgsLocatorFilter::setUseWithoutPrefix( bool useWithoutPrefix )
 
 QString QgsLocatorFilter::activePrefix() const
 {
+  // do not change this to isEmpty!
+  // if any issue with an in-built locator filter
+  // do not forget to add it in QgsLocator::CORE_FILTERS
   if ( mActivePrefifx.isNull() )
     return prefix();
   else

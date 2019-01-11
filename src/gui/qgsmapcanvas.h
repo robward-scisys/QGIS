@@ -22,9 +22,9 @@
 #include "qgis_sip.h"
 
 #include "qgsexpressioncontext.h"
-#include "qgsfeature.h"
-#include "qgsmessagebar.h"
 #include "qgsrectangle.h"
+#include "qgsfeatureid.h"
+#include "qgsgeometry.h"
 #include "qgis.h"
 
 #include <QDomDocument>
@@ -928,7 +928,7 @@ class GUI_EXPORT QgsMapCanvas : public QGraphicsView
     bool mRenderFlag = true;
 
     //! current layer in legend
-    QgsMapLayer *mCurrentLayer = nullptr;
+    QPointer< QgsMapLayer > mCurrentLayer;
 
     //! graphics scene manages canvas items
     QGraphicsScene *mScene = nullptr;

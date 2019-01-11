@@ -20,6 +20,7 @@
 #include "qgscoordinatetransform.h"
 #include "qgsmaptopixel.h"
 #include "qgsunittypes.h"
+#include "qgsmeshlayerutils.h"
 
 #include <cstdlib>
 #include <ctime>
@@ -45,17 +46,15 @@ inline bool nodataValue( double x, double y )
 }
 
 QgsMeshVectorRenderer::QgsMeshVectorRenderer( const QgsTriangularMesh &m,
-    const QVector<double> &datasetValuesX,
-    const QVector<double> &datasetValuesY,
+    const QgsMeshDataBlock &datasetValues,
     const QVector<double> &datasetValuesMag,
     double datasetMagMinimumValue,
     double datasetMagMaximumValue,
     bool dataIsOnVertices,
     const QgsMeshRendererVectorSettings &settings,
-    QgsRenderContext &context, const QSize &size )
+    QgsRenderContext &context, QSize size )
   : mTriangularMesh( m )
-  , mDatasetValuesX( datasetValuesX )
-  , mDatasetValuesY( datasetValuesY )
+  , mDatasetValues( datasetValues )
   , mDatasetValuesMag( datasetValuesMag )
   , mMinMag( datasetMagMinimumValue )
   , mMaxMag( datasetMagMaximumValue )
@@ -63,11 +62,23 @@ QgsMeshVectorRenderer::QgsMeshVectorRenderer( const QgsTriangularMesh &m,
   , mCfg( settings )
   , mDataOnVertices( dataIsOnVertices )
   , mOutputSize( size )
+  , mBufferedExtent( context.extent() )
 {
   // should be checked in caller
   Q_ASSERT( !mDatasetValuesMag.empty() );
   Q_ASSERT( !std::isnan( mMinMag ) );
   Q_ASSERT( !std::isnan( mMaxMag ) );
+  Q_ASSERT( mDatasetValues.isValid() );
+  Q_ASSERT( QgsMeshDataBlock::Vector2DDouble == mDatasetValues.type() );
+
+  // we need to expand out the extent so that it includes
+  // arrows which start or end up outside of the
+  // actual visible extent
+  double extension = context.convertToMapUnits( calcExtentBufferSize(), QgsUnitTypes::RenderPixels );
+  mBufferedExtent.setXMinimum( mBufferedExtent.xMinimum() - extension );
+  mBufferedExtent.setXMaximum( mBufferedExtent.xMaximum() + extension );
+  mBufferedExtent.setYMinimum( mBufferedExtent.yMinimum() - extension );
+  mBufferedExtent.setYMaximum( mBufferedExtent.yMaximum() + extension );
 }
 
 QgsMeshVectorRenderer::~QgsMeshVectorRenderer() = default;
@@ -80,7 +91,6 @@ void QgsMeshVectorRenderer::draw()
   if ( mContext.flags() & QgsRenderContext::Antialiasing )
     painter->setRenderHint( QPainter::Antialiasing, true );
 
-  painter->setRenderHint( QPainter::Antialiasing );
   QPen pen = painter->pen();
   pen.setCapStyle( Qt::FlatCap );
   pen.setJoinStyle( Qt::MiterJoin );
@@ -91,10 +101,14 @@ void QgsMeshVectorRenderer::draw()
   pen.setColor( mCfg.color() );
   painter->setPen( pen );
 
-  if ( mDataOnVertices )
-    drawVectorDataOnVertices();
+  const QList<int> trianglesInExtent = mTriangularMesh.faceIndexesForRectangle( mBufferedExtent );
+
+  if ( mCfg.isOnUserDefinedGrid() )
+    drawVectorDataOnGrid( trianglesInExtent );
+  else if ( mDataOnVertices )
+    drawVectorDataOnVertices( trianglesInExtent );
   else
-    drawVectorDataOnFaces();
+    drawVectorDataOnFaces( trianglesInExtent );
 
   painter->restore();
 }
@@ -176,54 +190,106 @@ bool QgsMeshVectorRenderer::calcVectorLineEnd(
 
   vectorLength = sqrt( xDist * xDist + yDist * yDist );
 
-  // Check to see if any of the coords are outside the QImage area, if so, skip the whole vector
-  if ( lineStart.x() < 0 || lineStart.x() > mOutputSize.width() ||
-       lineStart.y() < 0 || lineStart.y() > mOutputSize.height() ||
-       lineEnd.x() < 0   || lineEnd.x() > mOutputSize.width() ||
-       lineEnd.y() < 0   || lineEnd.y() > mOutputSize.height() )
+  // Check to see if both of the coords are outside the QImage area, if so, skip the whole vector
+  if ( ( lineStart.x() < 0 || lineStart.x() > mOutputSize.width() ||
+         lineStart.y() < 0 || lineStart.y() > mOutputSize.height() ) &&
+       ( lineEnd.x() < 0   || lineEnd.x() > mOutputSize.width() ||
+         lineEnd.y() < 0   || lineEnd.y() > mOutputSize.height() ) )
     return true;
 
   return false; //success
 }
 
+double QgsMeshVectorRenderer::calcExtentBufferSize() const
+{
+  double buffer = 0;
+  switch ( mCfg.shaftLengthMethod() )
+  {
+    case QgsMeshRendererVectorSettings::ArrowScalingMethod::MinMax:
+    {
+      buffer = mContext.convertToPainterUnits( mCfg.maxShaftLength(),
+               QgsUnitTypes::RenderUnit::RenderMillimeters );
+      break;
+    }
+    case QgsMeshRendererVectorSettings::ArrowScalingMethod::Scaled:
+    {
+      buffer = mCfg.scaleFactor() * mMaxMag;
+      break;
+    }
+    case QgsMeshRendererVectorSettings::ArrowScalingMethod::Fixed:
+    {
+      buffer = mContext.convertToPainterUnits( mCfg.fixedShaftLength(),
+               QgsUnitTypes::RenderUnit::RenderMillimeters );
+      break;
+    }
+  }
 
-void QgsMeshVectorRenderer::drawVectorDataOnVertices()
+  if ( mCfg.filterMax() >= 0 && buffer > mCfg.filterMax() )
+    buffer = mCfg.filterMax();
+
+  if ( buffer < 0.0 )
+    buffer = 0.0;
+
+  return buffer;
+}
+
+
+void QgsMeshVectorRenderer::drawVectorDataOnVertices( const QList<int> &trianglesInExtent )
 {
   const QVector<QgsMeshVertex> &vertices = mTriangularMesh.vertices();
+  const QVector<QgsMeshFace> &triangles = mTriangularMesh.triangles();
+  QSet<int> drawnVertices;
 
   // currently expecting that triangulation does not add any new extra vertices on the way
   Q_ASSERT( mDatasetValuesMag.count() == vertices.count() );
 
-  for ( int i = 0; i < vertices.size(); ++i )
+  for ( int triangleIndex : trianglesInExtent )
   {
-    const QgsMeshVertex &vertex = vertices.at( i );
-    //if (!nodeInsideView(nodeIndex))
-    //    continue;
+    if ( mContext.renderingStopped() )
+      break;
 
-    double xVal = mDatasetValuesX[i];
-    double yVal = mDatasetValuesY[i];
-    if ( nodataValue( xVal, yVal ) )
-      continue;
+    const QgsMeshFace triangle = triangles[triangleIndex];
+    for ( int i : triangle )
+    {
+      if ( drawnVertices.contains( i ) )
+        continue;
+      drawnVertices.insert( i );
 
-    double V = mDatasetValuesMag[i];  // pre-calculated magnitude
-    QgsPointXY lineStart = mContext.mapToPixel().transform( vertex.x(), vertex.y() );
+      const QgsMeshVertex &vertex = vertices.at( i );
+      if ( !mBufferedExtent.contains( vertex ) )
+        continue;
 
-    drawVectorArrow( lineStart, xVal, yVal, V );
+      const QgsMeshDatasetValue val = mDatasetValues.value( i );
+      double xVal = val.x();
+      double yVal = val.y();
+      if ( nodataValue( xVal, yVal ) )
+        continue;
+
+      double V = mDatasetValuesMag[i];  // pre-calculated magnitude
+      QgsPointXY lineStart = mContext.mapToPixel().transform( vertex.x(), vertex.y() );
+
+      drawVectorArrow( lineStart, xVal, yVal, V );
+    }
   }
 }
 
-void QgsMeshVectorRenderer::drawVectorDataOnFaces()
+void QgsMeshVectorRenderer::drawVectorDataOnFaces( const QList<int> &trianglesInExtent )
 {
   const QVector<QgsMeshVertex> &centroids = mTriangularMesh.centroids();
-
-  for ( int i = 0; i < centroids.count(); i++ )
+  const QList<int> nativeFacesInExtent = QgsMeshUtils::nativeFacesFromTriangles( trianglesInExtent,
+                                         mTriangularMesh.trianglesToNativeFaces() );
+  for ( int i : nativeFacesInExtent )
   {
-    //if (elemOutsideView(elemIndex))
-    //    continue;
+    if ( mContext.renderingStopped() )
+      break;
 
     QgsPointXY center = centroids.at( i );
-    double xVal = mDatasetValuesX[i];
-    double yVal = mDatasetValuesY[i];
+    if ( !mBufferedExtent.contains( center ) )
+      continue;
+
+    const QgsMeshDatasetValue val = mDatasetValues.value( i );
+    double xVal = val.x();
+    double yVal = val.y();
     if ( nodataValue( xVal, yVal ) )
       continue;
 
@@ -234,6 +300,98 @@ void QgsMeshVectorRenderer::drawVectorDataOnFaces()
   }
 }
 
+void QgsMeshVectorRenderer::drawVectorDataOnGrid( const QList<int> &trianglesInExtent )
+{
+  int cellx = mCfg.userGridCellWidth();
+  int celly = mCfg.userGridCellHeight();
+
+  const QVector<QgsMeshFace> &triangles = mTriangularMesh.triangles();
+  const QVector<QgsMeshVertex> &vertices = mTriangularMesh.vertices();
+
+  for ( const int i : trianglesInExtent )
+  {
+    if ( mContext.renderingStopped() )
+      break;
+
+    const QgsMeshFace &face = triangles[i];
+
+    const int v1 = face[0], v2 = face[1], v3 = face[2];
+    const QgsPoint p1 = vertices[v1], p2 = vertices[v2], p3 = vertices[v3];
+
+    const int nativeFaceIndex = mTriangularMesh.trianglesToNativeFaces()[i];
+
+    // Get the BBox of the element in pixels
+    QgsRectangle bbox = QgsMeshLayerUtils::triangleBoundingBox( p1, p2, p3 );
+    int left, right, top, bottom;
+    QgsMeshLayerUtils::boundingBoxToScreenRectangle( mContext.mapToPixel(), mOutputSize, bbox, left, right, top, bottom );
+
+    // Align rect to the grid (e.g. interval <13, 36> with grid cell 10 will be trimmed to <20,30>
+    if ( left % cellx != 0 )
+      left += cellx - ( left % cellx );
+    if ( right % cellx != 0 )
+      right -= ( right % cellx );
+    if ( top % celly != 0 )
+      top += celly - ( top % celly );
+    if ( bottom % celly != 0 )
+      bottom -= ( bottom % celly );
+
+    for ( int y = top; y <= bottom; y += celly )
+    {
+      for ( int x = left; x <= right; x += cellx )
+      {
+        QgsMeshDatasetValue val;
+        const QgsPointXY p = mContext.mapToPixel().toMapCoordinates( x, y );
+
+        if ( mDataOnVertices )
+        {
+          const auto val1 = mDatasetValues.value( v1 );
+          const auto val2 = mDatasetValues.value( v2 );
+          const auto val3 = mDatasetValues.value( v3 );
+          val.setX(
+            QgsMeshLayerUtils::interpolateFromVerticesData(
+              p1, p2, p3,
+              val1.x(),
+              val2.x(),
+              val3.x(),
+              p )
+          );
+          val.setY(
+            QgsMeshLayerUtils::interpolateFromVerticesData(
+              p1, p2, p3,
+              val1.y(),
+              val2.y(),
+              val3.y(),
+              p )
+          );
+        }
+        else
+        {
+          const auto val1 = mDatasetValues.value( nativeFaceIndex );
+          val.setX(
+            QgsMeshLayerUtils::interpolateFromFacesData(
+              p1, p2, p3,
+              val1.x(),
+              p
+            )
+          );
+          val.setY(
+            QgsMeshLayerUtils::interpolateFromFacesData(
+              p1, p2, p3,
+              val1.y(),
+              p
+            )
+          );
+        }
+
+        if ( nodataValue( val.x(), val.y() ) )
+          continue;
+
+        QgsPointXY lineStart( x, y );
+        drawVectorArrow( lineStart, val.x(), val.y(), val.scalar() );
+      }
+    }
+  }
+}
 
 void QgsMeshVectorRenderer::drawVectorArrow( const QgsPointXY &lineStart, double xVal, double yVal, double magnitude )
 {

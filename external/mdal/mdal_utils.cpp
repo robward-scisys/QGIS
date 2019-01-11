@@ -10,6 +10,10 @@
 #include <algorithm>
 #include <sstream>
 #include <math.h>
+#include <assert.h>
+#include <cmath>
+#include <string.h>
+#include <stdio.h>
 
 bool MDAL::fileExists( const std::string &filename )
 {
@@ -71,6 +75,17 @@ double MDAL::toDouble( const std::string &str )
   return atof( str.c_str() );
 }
 
+bool MDAL::isNumber( const std::string &str )
+{
+  // https://stackoverflow.com/a/16465826/2838364
+  return ( strspn( str.c_str(), "-.0123456789" ) == str.size() );
+}
+
+int MDAL::toInt( const std::string &str )
+{
+  return atoi( str.c_str() );
+}
+
 std::string MDAL::baseName( const std::string &filename )
 {
   // https://stackoverflow.com/a/8520815/2838364
@@ -91,6 +106,27 @@ std::string MDAL::baseName( const std::string &filename )
     fname.erase( period_idx );
   }
   return fname;
+}
+
+std::string MDAL::pathJoin( const std::string &path1, const std::string &path2 )
+{
+//https://stackoverflow.com/questions/6297738/how-to-build-a-full-path-string-safely-from-separate-strings#6297807
+#ifdef _MSC_VER
+  return path1 + "\\" + path2;
+#else
+  return path1 + "/" + path2;
+#endif
+}
+
+std::string MDAL::dirName( const std::string &filename )
+{
+  std::string dname( filename );
+  const size_t last_slash_idx = dname.find_last_of( "\\/" );
+  if ( std::string::npos != last_slash_idx )
+  {
+    dname.erase( last_slash_idx, dname.size() - last_slash_idx );
+  }
+  return dname;
 }
 
 bool MDAL::contains( const std::string &str, const std::string &substr, ContainsBehaviour behaviour )
@@ -149,7 +185,13 @@ std::string MDAL::join( const std::vector<std::string> parts, const std::string 
 std::string MDAL::toLower( const std::string &std )
 {
   std::string res( std );
+#ifdef WIN32
+  //silence algorithm(1443): warning C4244: '=': conversion from 'int' to 'char'
+  std::transform( res.begin(), res.end(), res.begin(),
+  []( char c ) {return static_cast<char>( ::tolower( c ) );} );
+#else
   std::transform( res.begin(), res.end(), res.begin(), ::tolower );
+#endif
   return res;
 }
 
@@ -180,11 +222,18 @@ std::string MDAL::replace( const std::string &str, const std::string &substr, co
   return res;
 }
 
+std::string MDAL::removeLastChar( const std::string &str )
+{
+  std::string ret( str );
+  ret.pop_back();
+  return ret;
+}
+
 MDAL::BBox MDAL::computeExtent( const MDAL::Vertices &vertices )
 {
   BBox b;
 
-  if ( vertices.empty() == 0 )
+  if ( vertices.empty() )
     return b;
 
   b.minX = vertices[0].x;
@@ -206,4 +255,183 @@ MDAL::BBox MDAL::computeExtent( const MDAL::Vertices &vertices )
 bool MDAL::equals( double val1, double val2, double eps )
 {
   return fabs( val1 - val2 ) < eps;
+}
+
+double MDAL::safeValue( double val, double nodata, double eps )
+{
+  if ( equals( val, nodata, eps ) )
+  {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  else
+  {
+    return val;
+  }
+}
+
+double MDAL::parseTimeUnits( const std::string &units )
+{
+  double divBy = 1;
+  // We are trying to parse strings like
+  // "seconds since 2001-05-05 00:00:00"
+  // "hours since 1900-01-01 00:00:0.0"
+  // "days since 1961-01-01 00:00:00"
+  const std::vector<std::string> units_list = MDAL::split( units, " since ", SkipEmptyParts );
+  if ( units_list.size() == 2 )
+  {
+    // Give me hours
+    if ( units_list[0] == "seconds" )
+    {
+      divBy = 3600.0;
+    }
+    else if ( units_list[0] == "minutes" )
+    {
+      divBy = 60.0;
+    }
+    else if ( units_list[0] == "days" )
+    {
+      divBy = 1.0 / 24.0;
+    }
+  }
+
+  return divBy;
+}
+
+MDAL::Statistics _calculateStatistics( const std::vector<double> &values, size_t count, bool isVector )
+{
+  MDAL::Statistics ret;
+
+  double min = std::numeric_limits<double>::quiet_NaN();
+  double max = std::numeric_limits<double>::quiet_NaN();
+  bool firstIteration = true;
+
+  for ( size_t i = 0; i < count; ++i )
+  {
+    double magnitude;
+    if ( isVector )
+    {
+      double x = values[2 * i];
+      double y = values[2 * i + 1];
+      if ( std::isnan( x ) || std::isnan( y ) )
+        continue;
+      magnitude = sqrt( x * x + y * y );
+    }
+    else
+    {
+      double x = values[i];
+      if ( std::isnan( x ) )
+        continue;
+      magnitude = x;
+    }
+
+    if ( firstIteration )
+    {
+      firstIteration = false;
+      min = magnitude;
+      max = magnitude;
+    }
+    else
+    {
+      if ( magnitude < min )
+      {
+        min = magnitude;
+      }
+      if ( magnitude > max )
+      {
+        max = magnitude;
+      }
+    }
+  }
+
+  ret.minimum = min;
+  ret.maximum = max;
+  return ret;
+}
+
+MDAL::Statistics MDAL::calculateStatistics( std::shared_ptr<DatasetGroup> grp )
+{
+  Statistics ret;
+  if ( !grp )
+    return ret;
+
+  for ( std::shared_ptr<Dataset> ds : grp->datasets )
+  {
+    MDAL::Statistics dsStats = ds->statistics();
+    combineStatistics( ret, dsStats );
+  }
+  return ret;
+}
+
+MDAL::Statistics MDAL::calculateStatistics( std::shared_ptr<Dataset> dataset )
+{
+  Statistics ret;
+  if ( !dataset )
+    return ret;
+
+  bool isVector = !dataset->group()->isScalar();
+  size_t bufLen = 2000;
+  std::vector<double> buffer( isVector ? bufLen * 2 : bufLen );
+
+  size_t i = 0;
+  while ( i < dataset->valuesCount() )
+  {
+    size_t valsRead;
+    if ( isVector )
+    {
+      valsRead = dataset->vectorData( i, bufLen, buffer.data() );
+    }
+    else
+    {
+      valsRead = dataset->scalarData( i, bufLen, buffer.data() );
+    }
+    MDAL::Statistics dsStats = _calculateStatistics( buffer, valsRead, isVector );
+    combineStatistics( ret, dsStats );
+    i += valsRead;
+  }
+
+  return ret;
+}
+
+void MDAL::combineStatistics( MDAL::Statistics &main, const MDAL::Statistics &other )
+{
+  if ( std::isnan( main.minimum ) ||
+       ( !std::isnan( other.minimum ) && ( main.minimum > other.minimum ) ) )
+  {
+    main.minimum = other.minimum;
+  }
+
+  if ( std::isnan( main.maximum ) ||
+       ( !std::isnan( other.maximum ) && ( main.maximum < other.maximum ) ) )
+  {
+    main.maximum = other.maximum;
+  }
+}
+
+void MDAL::addBedElevationDatasetGroup( MDAL::Mesh *mesh, const Vertices &vertices )
+{
+  if ( !mesh )
+    return;
+
+  if ( 0 == mesh->facesCount() )
+    return;
+
+  std::shared_ptr<DatasetGroup> group = std::make_shared< DatasetGroup >(
+                                          mesh,
+                                          mesh->uri(),
+                                          "Bed Elevation"
+                                        );
+  group->setIsOnVertices( true );
+  group->setIsScalar( true );
+
+  std::shared_ptr<MDAL::MemoryDataset> dataset = std::make_shared< MemoryDataset >( group.get() );
+  dataset->setTime( 0.0 );
+  double *vals = dataset->values();
+  for ( size_t i = 0; i < vertices.size(); ++i )
+  {
+    vals[i] = vertices[i].z;
+  }
+  dataset->setStatistics( MDAL::calculateStatistics( dataset ) );
+  group->datasets.push_back( dataset );
+  group->setStatistics( MDAL::calculateStatistics( group ) );
+  mesh->datasetGroups.push_back( group );
 }

@@ -18,6 +18,7 @@
 #include "qgsapplication.h"
 #include "qgsexpression.h"
 #include "qgsgeometry.h"
+#include "qgsmapcanvas.h"
 #include "qgsmessagebar.h"
 #include "qgsvectorlayer.h"
 #include "qgssettings.h"
@@ -31,7 +32,7 @@ QgsExpressionSelectionDialog::QgsExpressionSelectionDialog( QgsVectorLayer *laye
 {
   setupUi( this );
 
-  QgsGui::instance()->enableAutoGeometryRestore( this );
+  QgsGui::enableAutoGeometryRestore( this );
 
   connect( mActionSelect, &QAction::triggered, this, &QgsExpressionSelectionDialog::mActionSelect_triggered );
   connect( mActionAddToSelection, &QAction::triggered, this, &QgsExpressionSelectionDialog::mActionAddToSelection_triggered );
@@ -103,6 +104,7 @@ void QgsExpressionSelectionDialog::mActionSelect_triggered()
 {
   mLayer->selectByExpression( mExpressionBuilder->expressionText(),
                               QgsVectorLayer::SetSelection );
+  pushSelectedFeaturesMessage();
   saveRecent();
 }
 
@@ -110,6 +112,7 @@ void QgsExpressionSelectionDialog::mActionAddToSelection_triggered()
 {
   mLayer->selectByExpression( mExpressionBuilder->expressionText(),
                               QgsVectorLayer::AddToSelection );
+  pushSelectedFeaturesMessage();
   saveRecent();
 }
 
@@ -117,6 +120,7 @@ void QgsExpressionSelectionDialog::mActionSelectIntersect_triggered()
 {
   mLayer->selectByExpression( mExpressionBuilder->expressionText(),
                               QgsVectorLayer::IntersectSelection );
+  pushSelectedFeaturesMessage();
   saveRecent();
 }
 
@@ -124,7 +128,26 @@ void QgsExpressionSelectionDialog::mActionRemoveFromSelection_triggered()
 {
   mLayer->selectByExpression( mExpressionBuilder->expressionText(),
                               QgsVectorLayer::RemoveFromSelection );
+  pushSelectedFeaturesMessage();
   saveRecent();
+}
+
+void QgsExpressionSelectionDialog::pushSelectedFeaturesMessage()
+{
+  int count = mLayer->selectedFeatureCount();
+  if ( count > 0 )
+  {
+    mMessageBar->pushMessage( QString(),
+                              tr( "%1 matching %2 selected" ).arg( count )
+                              .arg( count == 1 ? tr( "feature" ) : tr( "features" ) ),
+                              Qgis::Info );
+  }
+  else
+  {
+    mMessageBar->pushMessage( QString(),
+                              tr( "No matching features found" ),
+                              Qgis::Warning );
+  }
 }
 
 void QgsExpressionSelectionDialog::mButtonZoomToFeatures_clicked()
@@ -136,7 +159,7 @@ void QgsExpressionSelectionDialog::mButtonZoomToFeatures_clicked()
 
   QgsFeatureRequest request = QgsFeatureRequest().setFilterExpression( mExpressionBuilder->expressionText() )
                               .setExpressionContext( context )
-                              .setSubsetOfAttributes( QgsAttributeList() );
+                              .setNoAttributes();
 
   QgsFeatureIterator features = mLayer->getFeatures( request );
 

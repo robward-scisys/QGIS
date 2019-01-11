@@ -42,7 +42,7 @@ bool QgsMultiRenderChecker::runTest( const QString &testName, unsigned int misma
 
   if ( subDirs.isEmpty() )
   {
-    subDirs << QLatin1String( "" );
+    subDirs << QString();
   }
 
   QVector<QgsDartMeasurement> dartMeasurements;
@@ -99,11 +99,11 @@ QString QgsMultiRenderChecker::controlImagePath() const
   return myControlImageDir;
 }
 
-#ifdef ENABLE_TESTS
-
 //
 // QgsLayoutChecker
 //
+
+///@cond PRIVATE
 
 QgsLayoutChecker::QgsLayoutChecker( const QString &testName, QgsLayout *layout )
   : mTestName( testName )
@@ -171,5 +171,3 @@ bool QgsLayoutChecker::testLayout( QString &checkedReport, int page, int pixelDi
 
 
 ///@endcond
-
-#endif

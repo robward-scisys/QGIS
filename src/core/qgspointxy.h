@@ -15,8 +15,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef QGSPOINT_H
-#define QGSPOINT_H
+#ifndef QGSPOINTXY_H
+#define QGSPOINTXY_H
 
 #include "qgis_core.h"
 #include "qgsvector.h"
@@ -298,7 +298,7 @@ class CORE_EXPORT QgsPointXY
     SIP_PYOBJECT __repr__();
     % MethodCode
     QString str = QStringLiteral( "<QgsPointXY: %1>" ).arg( sipCpp->asWkt() );
-    sipRes = PyUnicode_FromString( str.toUtf8().data() );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
     % End
 
     int __len__();
@@ -369,4 +369,4 @@ inline uint qHash( const QgsPointXY &p ) SIP_SKIP
 }
 
 
-#endif //QGSPOINT_H
+#endif //QGSPOINTXY_H

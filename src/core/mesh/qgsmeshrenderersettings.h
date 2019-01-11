@@ -24,6 +24,7 @@
 #include "qgis_core.h"
 #include "qgis.h"
 #include "qgscolorrampshader.h"
+#include "qgsmeshdataprovider.h"
 
 
 /**
@@ -53,6 +54,11 @@ class CORE_EXPORT QgsMeshRendererMeshSettings
     //! Sets color used for rendering of the mesh
     void setColor( const QColor &color );
 
+    //! Writes configuration to a new DOM element
+    QDomElement writeXml( QDomDocument &doc ) const;
+    //! Reads configuration from the given DOM element
+    void readXml( const QDomElement &elem );
+
   private:
     bool mEnabled = false;
     double mLineWidth = DEFAULT_LINE_WIDTH;
@@ -76,10 +82,28 @@ class CORE_EXPORT QgsMeshRendererScalarSettings
     //! Sets color ramp shader function
     void setColorRampShader( const QgsColorRampShader &shader );
 
-    //! Returns whether color ramp has any items assigned
-    bool isEnabled() const;
+    //! Returns min value used for creation of the color ramp shader
+    double classificationMinimum() const;
+    //! Returns max value used for creation of the color ramp shader
+    double classificationMaximum() const;
+    //! Sets min/max values used for creation of the color ramp shader
+    void setClassificationMinimumMaximum( double minimum, double maximum );
+
+    //! Returns opacity
+    double opacity() const;
+    //! Sets opacity
+    void setOpacity( double opacity );
+
+    //! Writes configuration to a new DOM element
+    QDomElement writeXml( QDomDocument &doc ) const;
+    //! Reads configuration from the given DOM element
+    void readXml( const QDomElement &elem );
+
   private:
     QgsColorRampShader mColorRampShader;
+    double mClassificationMinimum = 0;
+    double mClassificationMaximum = 0;
+    double mOpacity = 1;
 };
 
 /**
@@ -94,6 +118,7 @@ class CORE_EXPORT QgsMeshRendererScalarSettings
 class CORE_EXPORT QgsMeshRendererVectorSettings
 {
   public:
+
     //! Algorithm how to transform vector magnitude to length of arrow on the device in pixels
     enum ArrowScalingMethod
     {
@@ -223,6 +248,24 @@ class CORE_EXPORT QgsMeshRendererVectorSettings
     //! Sets ratio of the head length of the arrow (range 0-1)
     void setArrowHeadLengthRatio( double arrowHeadLengthRatio );
 
+    //! Returns whether vectors are drawn on user-defined grid
+    bool isOnUserDefinedGrid() const;
+    //! Toggles drawing of vectors on user defined grid
+    void setOnUserDefinedGrid( bool enabled );
+    //! Returns width in pixels of user grid cell
+    int userGridCellWidth() const;
+    //! Sets width of user grid cell (in pixels)
+    void setUserGridCellWidth( int width );
+    //! Returns height in pixels of user grid cell
+    int userGridCellHeight() const;
+    //! Sets height of user grid cell (in pixels)
+    void setUserGridCellHeight( int height );
+
+    //! Writes configuration to a new DOM element
+    QDomElement writeXml( QDomDocument &doc ) const;
+    //! Reads configuration from the given DOM element
+    void readXml( const QDomElement &elem );
+
   private:
     double mLineWidth = DEFAULT_LINE_WIDTH; //in milimeters
     QColor mColor = Qt::black;
@@ -235,6 +278,72 @@ class CORE_EXPORT QgsMeshRendererVectorSettings
     double mFixedShaftLength = 20; //in milimeters
     double mArrowHeadWidthRatio = 0.15;
     double mArrowHeadLengthRatio = 0.40;
+    bool mOnUserDefinedGrid = false;
+    int mUserGridCellWidth = 10; // in pixels
+    int mUserGridCellHeight = 10; // in pixels
+};
+
+
+/**
+ * \ingroup core
+ *
+ * Represents all mesh renderer settings
+ *
+ * \note The API is considered EXPERIMENTAL and can be changed without a notice
+ *
+ * \since QGIS 3.4
+ */
+class CORE_EXPORT QgsMeshRendererSettings
+{
+  public:
+
+    //! Returns renderer settings
+    QgsMeshRendererMeshSettings nativeMeshSettings() const { return mRendererNativeMeshSettings; }
+    //! Sets new renderer settings, triggers repaint
+    void setNativeMeshSettings( const QgsMeshRendererMeshSettings &settings ) { mRendererNativeMeshSettings = settings; }
+
+    //! Returns renderer settings
+    QgsMeshRendererMeshSettings triangularMeshSettings() const { return mRendererTriangularMeshSettings; }
+    //! Sets new renderer settings
+    void setTriangularMeshSettings( const QgsMeshRendererMeshSettings &settings ) { mRendererTriangularMeshSettings = settings; }
+
+    //! Returns renderer settings
+    QgsMeshRendererScalarSettings scalarSettings( int groupIndex ) const { return mRendererScalarSettings.value( groupIndex ); }
+    //! Sets new renderer settings
+    void setScalarSettings( int groupIndex, const QgsMeshRendererScalarSettings &settings ) { mRendererScalarSettings[groupIndex] = settings; }
+
+    //! Returns renderer settings
+    QgsMeshRendererVectorSettings vectorSettings( int groupIndex ) const { return mRendererVectorSettings.value( groupIndex ); }
+    //! Sets new renderer settings
+    void setVectorSettings( int groupIndex, const QgsMeshRendererVectorSettings &settings ) { mRendererVectorSettings[groupIndex] = settings; }
+
+    //! Returns active scalar dataset
+    QgsMeshDatasetIndex activeScalarDataset() const { return mActiveScalarDataset; }
+    //! Sets active scalar dataset for rendering
+    void setActiveScalarDataset( QgsMeshDatasetIndex index = QgsMeshDatasetIndex() ) { mActiveScalarDataset = index; }
+
+    //! Returns active vector dataset
+    QgsMeshDatasetIndex activeVectorDataset() const { return mActiveVectorDataset; }
+    //! Sets active vector dataset for rendering.
+    void setActiveVectorDataset( QgsMeshDatasetIndex index = QgsMeshDatasetIndex() ) { mActiveVectorDataset = index; }
+
+    //! Writes configuration to a new DOM element
+    QDomElement writeXml( QDomDocument &doc ) const;
+    //! Reads configuration from the given DOM element
+    void readXml( const QDomElement &elem );
+
+  private:
+    QgsMeshRendererMeshSettings mRendererNativeMeshSettings;
+    QgsMeshRendererMeshSettings mRendererTriangularMeshSettings;
+
+    QHash<int, QgsMeshRendererScalarSettings> mRendererScalarSettings;  //!< Per-group scalar settings
+    QHash<int, QgsMeshRendererVectorSettings> mRendererVectorSettings;  //!< Per-group vector settings
+
+    //! index of active scalar dataset
+    QgsMeshDatasetIndex mActiveScalarDataset;
+
+    //! index of active vector dataset
+    QgsMeshDatasetIndex mActiveVectorDataset;
 };
 
 #endif //QGSMESHRENDERERSETTINGS_H

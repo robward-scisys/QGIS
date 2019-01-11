@@ -29,12 +29,14 @@ email                : sherman at mrcc.com
 
 #include "qgsattributes.h"
 #include "qgsfields.h"
-
+#include "qgsfeatureid.h"
+#include <memory>
 class QgsFeature;
 class QgsFeaturePrivate;
 class QgsField;
 class QgsGeometry;
 class QgsRectangle;
+class QgsAbstractGeometry;
 
 
 /***************************************************************************
@@ -42,15 +44,6 @@ class QgsRectangle;
  * full unit tests in testqgsfeature.cpp.
  * See details in QEP #17
  ****************************************************************************/
-
-// feature id class (currently 64 bit)
-
-// 64 bit feature ids
-typedef qint64 QgsFeatureId SIP_SKIP;
-#define FID_IS_NEW(fid)     (fid<0)
-#define FID_TO_NUMBER(fid)  static_cast<qint64>(fid)
-#define FID_TO_STRING(fid)  QString::number( fid )
-#define STRING_TO_FID(str)  (str).toLongLong()
 
 
 /**
@@ -71,6 +64,7 @@ class CORE_EXPORT QgsFeature
     Q_PROPERTY( QgsFeatureId id READ id WRITE setId )
     Q_PROPERTY( QgsAttributes attributes READ attributes WRITE setAttributes )
     Q_PROPERTY( QgsFields fields READ fields WRITE setFields )
+    Q_PROPERTY( QgsGeometry geometry READ geometry WRITE setGeometry )
 
   public:
 
@@ -353,6 +347,41 @@ class CORE_EXPORT QgsFeature
     void setGeometry( const QgsGeometry &geometry );
 
     /**
+     * Set the feature's \a geometry. Ownership of the geometry is transferred to the feature.
+     * The feature will be made valid after calling this method.
+     *
+     * This method is a shortcut for calling:
+     * \code{.py}
+     *   feature.setGeometry( QgsGeometry( geometry ) )
+     * \endcode
+     *
+     * * Example:
+     * \code{.py}
+     *   # Sets a feature's geometry to a point geometry
+     *   feature.setGeometry( QgsPoint( 210, 41 ) )
+     *   print(feature.geometry())
+     *   # output: <QgsGeometry: Point (210 41)>
+     *
+     *   # Sets a feature's geometry to a line string
+     *   feature.setGeometry( QgsLineString( [ QgsPoint( 210, 41 ), QgsPoint( 301, 55 ) ] ) )
+     *   print(feature.geometry())
+     *   # output: <QgsGeometry: LineString (210 41, 301 55)>
+     * \endcode
+     *
+     * \see geometry()
+     * \see clearGeometry()
+     * \since QGIS 3.6
+     */
+#ifndef SIP_RUN
+    void setGeometry( std::unique_ptr< QgsAbstractGeometry > geometry );
+#else
+    void setGeometry( QgsAbstractGeometry *geometry SIP_TRANSFER );
+    % MethodCode
+    sipCpp->setGeometry( std::unique_ptr< QgsAbstractGeometry>( a0 ) );
+    % End
+#endif
+
+    /**
      * Removes any geometry associated with the feature.
      * \see setGeometry()
      * \see hasGeometry()
@@ -537,13 +566,6 @@ typedef QMap<qint64, QMap<int, QVariant> > QgsChangedAttributesMap;
 typedef QMap<QgsFeatureId, QgsGeometry> QgsGeometryMap;
 #else
 typedef QMap<qint64, QgsGeometry> QgsGeometryMap;
-#endif
-
-
-#ifndef SIP_RUN
-typedef QSet<QgsFeatureId> QgsFeatureIds;
-#else
-typedef QSet<qint64> QgsFeatureIds;
 #endif
 
 typedef QList<QgsFeature> QgsFeatureList;

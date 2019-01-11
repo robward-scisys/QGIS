@@ -399,6 +399,8 @@ bool QgsLayoutItemAttributeTable::getTableContents( QgsLayoutTableContents &cont
   QgsExpressionContext context = createExpressionContext();
   context.setFields( layer->fields() );
 
+  QgsFeatureRequest req;
+
   //prepare filter expression
   std::unique_ptr<QgsExpression> filterExpression;
   bool activeFilter = false;
@@ -408,6 +410,7 @@ bool QgsLayoutItemAttributeTable::getTableContents( QgsLayoutTableContents &cont
     if ( !filterExpression->hasParserError() )
     {
       activeFilter = true;
+      req.setFilterExpression( mFeatureFilter );
     }
   }
 
@@ -430,8 +433,6 @@ bool QgsLayoutItemAttributeTable::getTableContents( QgsLayoutTableContents &cont
       }
     }
   }
-
-  QgsFeatureRequest req;
 
   if ( mSource == QgsLayoutItemAttributeTable::RelationChildren )
   {
@@ -708,7 +709,7 @@ bool QgsLayoutItemAttributeTable::readPropertiesFromElement( const QDomElement &
     return false;
 
   mSource = QgsLayoutItemAttributeTable::ContentSource( itemElem.attribute( QStringLiteral( "source" ), QStringLiteral( "0" ) ).toInt() );
-  mRelationId = itemElem.attribute( QStringLiteral( "relationId" ), QLatin1String( "" ) );
+  mRelationId = itemElem.attribute( QStringLiteral( "relationId" ), QString() );
 
   if ( mSource == QgsLayoutItemAttributeTable::AtlasFeature )
   {
@@ -719,7 +720,7 @@ bool QgsLayoutItemAttributeTable::readPropertiesFromElement( const QDomElement &
   mShowOnlyVisibleFeatures = itemElem.attribute( QStringLiteral( "showOnlyVisibleFeatures" ), QStringLiteral( "1" ) ).toInt();
   mFilterToAtlasIntersection = itemElem.attribute( QStringLiteral( "filterToAtlasIntersection" ), QStringLiteral( "0" ) ).toInt();
   mFilterFeatures = itemElem.attribute( QStringLiteral( "filterFeatures" ), QStringLiteral( "false" ) ) == QLatin1String( "true" );
-  mFeatureFilter = itemElem.attribute( QStringLiteral( "featureFilter" ), QLatin1String( "" ) );
+  mFeatureFilter = itemElem.attribute( QStringLiteral( "featureFilter" ), QString() );
   mMaximumNumberOfFeatures = itemElem.attribute( QStringLiteral( "maxFeatures" ), QStringLiteral( "5" ) ).toInt();
   mWrapString = itemElem.attribute( QStringLiteral( "wrapString" ) );
 

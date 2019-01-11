@@ -137,9 +137,7 @@ class APP_EXPORT QgsRasterLayerProperties : public QgsOptionsDialogBase, private
     //! Make GUI reflect the layer's state
     void syncToLayer();
 
-  signals:
-    //! Emitted when changes to layer were saved to update legend
-    void refreshLegend( const QString &layerID, bool expandItem );
+    void urlClicked( const QUrl &url );
 
   private:
     QPushButton *mBtnStyle = nullptr;
@@ -221,5 +219,7 @@ class APP_EXPORT QgsRasterLayerProperties : public QgsOptionsDialogBase, private
     bool mDisableRenderTypeComboBoxCurrentIndexChanged = false;
 
     bool mMetadataFilled;
+
+    friend class QgsAppScreenShots;
 };
 #endif

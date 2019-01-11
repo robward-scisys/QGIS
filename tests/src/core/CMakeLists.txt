@@ -35,6 +35,10 @@ INCLUDE_DIRECTORIES(SYSTEM
   ${SQLITE3_INCLUDE_DIR}
   )
 
+IF(HAVE_OPENCL)
+    INCLUDE_DIRECTORIES(SYSTEM ${OpenCL_INCLUDE_DIRS})
+ENDIF(HAVE_OPENCL)
+
 #note for tests we should not include the moc of our
 #qtests in the executable file list as the moc is
 #directly included in the sources
@@ -75,6 +79,8 @@ SET(TESTS
  testqgsauthconfig.cpp
  testqgsauthmanager.cpp
  testqgsblendmodes.cpp
+ testqgsbrowsermodel.cpp
+ testqgsbrowserproxymodel.cpp
  testqgscadutils.cpp
  testqgsclipper.cpp
  testqgscolorscheme.cpp
@@ -93,11 +99,13 @@ SET(TESTS
  testqgsdxfexport.cpp
  testqgsellipsemarker.cpp
  testqgsexpressioncontext.cpp
+ testqgssqliteexpressioncompiler.cpp
  testqgsexpression.cpp
  testqgsfeature.cpp
  testqgsfields.cpp
  testqgsfield.cpp
  testqgsfilledmarker.cpp
+ testqgsgdalutils.cpp
  testqgsvectorfilewriter.cpp
  testqgsfontmarker.cpp
  testqgsgeometryimport.cpp
@@ -108,6 +116,8 @@ SET(TESTS
  testqgsgradients.cpp
  testqgsgraduatedsymbolrenderer.cpp
  testqgshistogram.cpp
+ testqgshstoreutils.cpp
+ testqgsimagecache.cpp
  testqgsimageoperation.cpp
  testqgsinternalgeometryengine.cpp
  testqgsinvertedpolygonrenderer.cpp
@@ -138,6 +148,7 @@ SET(TESTS
  testqgslegendrenderer.cpp
  testqgscentroidfillsymbol.cpp
  testqgslinefillsymbol.cpp
+ testqgsmapdevicepixelratio.cpp
  testqgsmaplayerstylemanager.cpp
  testqgsmaplayer.cpp
  testqgsmaprendererjob.cpp
@@ -164,6 +175,7 @@ SET(TESTS
  testqgis.cpp
  testqgsrasterfilewriter.cpp
  testqgsrasterfill.cpp
+ testqgsrastermarker.cpp
  testqgsrasteriterator.cpp
  testqgsrasterblock.cpp
  testqgsrasterlayer.cpp
@@ -191,6 +203,8 @@ SET(TESTS
  testqgsvectorlayercache.cpp
  testqgsvectorlayerjoinbuffer.cpp
  testqgsvectorlayer.cpp
+ testqgsvectorlayerutils.cpp
+ testqgsziputils.cpp
  testziplayer.cpp
  testqgsmeshlayer.cpp
  testqgsmeshlayerrenderer.cpp
@@ -198,12 +212,21 @@ SET(TESTS
  testqgssqliteutils.cpp
  testqgsmimedatautils.cpp
  testqgsofflineediting.cpp
+ testqgstranslateproject.cpp
    )
 
 IF(WITH_QTWEBKIT)
   SET(TESTS ${TESTS}
         )
 ENDIF(WITH_QTWEBKIT)
+
+
+IF(HAVE_OPENCL)
+  SET(TESTS ${TESTS}
+    testqgsopenclutils.cpp
+        )
+ENDIF(HAVE_OPENCL)
+
 
 FOREACH(TESTSRC ${TESTS})
     ADD_QGIS_TEST(${TESTSRC})

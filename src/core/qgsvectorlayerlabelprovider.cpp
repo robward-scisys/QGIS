@@ -134,27 +134,30 @@ bool QgsVectorLayerLabelProvider::prepare( const QgsRenderContext &context, QSet
 
   lyr.mCurFields = mFields;
 
-  if ( lyr.drawLabels )
+  if ( lyr.drawLabels || lyr.obstacle )
   {
-    // add field indices for label's text, from expression or field
-    if ( lyr.isExpression )
+    if ( lyr.drawLabels )
     {
-      // prepare expression for use in QgsPalLayerSettings::registerFeature()
-      QgsExpression *exp = lyr.getLabelExpression();
-      exp->prepare( &context.expressionContext() );
-      if ( exp->hasEvalError() )
+      // add field indices for label's text, from expression or field
+      if ( lyr.isExpression )
       {
-        QgsDebugMsgLevel( "Prepare error:" + exp->evalErrorString(), 4 );
+        // prepare expression for use in QgsPalLayerSettings::registerFeature()
+        QgsExpression *exp = lyr.getLabelExpression();
+        exp->prepare( &context.expressionContext() );
+        if ( exp->hasEvalError() )
+        {
+          QgsDebugMsgLevel( "Prepare error:" + exp->evalErrorString(), 4 );
+        }
+        Q_FOREACH ( const QString &name, exp->referencedColumns() )
+        {
+          QgsDebugMsgLevel( "REFERENCED COLUMN = " + name, 4 );
+          attributeNames.insert( name );
+        }
       }
-      Q_FOREACH ( const QString &name, exp->referencedColumns() )
+      else
       {
-        QgsDebugMsgLevel( "REFERENCED COLUMN = " + name, 4 );
-        attributeNames.insert( name );
+        attributeNames.insert( lyr.fieldName );
       }
-    }
-    else
-    {
-      attributeNames.insert( lyr.fieldName );
     }
 
     lyr.dataDefinedProperties().prepare( context.expressionContext() );
@@ -319,7 +322,8 @@ QgsGeometry QgsVectorLayerLabelProvider::getPointObstacleGeometry( QgsFeature &f
     //TODO - remove when labeling is refactored to use screen units
     for ( int i = 0; i < boundLineString->numPoints(); ++i )
     {
-      QgsPointXY point = context.mapToPixel().toMapCoordinates( boundLineString->xAt( i ), boundLineString->yAt( i ) );
+      QgsPointXY point = context.mapToPixel().toMapCoordinates( static_cast<int>( boundLineString->xAt( i ) ),
+                         static_cast<int>( boundLineString->yAt( i ) ) );
       boundLineString->setXAt( i, point.x() );
       boundLineString->setYAt( i, point.y() );
     }
@@ -380,8 +384,8 @@ void QgsVectorLayerLabelProvider::drawLabel( QgsRenderContext &context, pal::Lab
 
   //font
   QFont dFont = lf->definedFont();
-  QgsDebugMsgLevel( QString( "PAL font tmpLyr: %1, Style: %2" ).arg( tmpLyr.format().font().toString(), tmpLyr.format().font().styleName() ), 4 );
-  QgsDebugMsgLevel( QString( "PAL font definedFont: %1, Style: %2" ).arg( dFont.toString(), dFont.styleName() ), 4 );
+  QgsDebugMsgLevel( QStringLiteral( "PAL font tmpLyr: %1, Style: %2" ).arg( tmpLyr.format().font().toString(), tmpLyr.format().font().styleName() ), 4 );
+  QgsDebugMsgLevel( QStringLiteral( "PAL font definedFont: %1, Style: %2" ).arg( dFont.toString(), dFont.styleName() ), 4 );
 
   QgsTextFormat format = tmpLyr.format();
   format.setFont( dFont );
@@ -611,7 +615,7 @@ void QgsVectorLayerLabelProvider::drawLabelPrivate( pal::LabelPosition *label, Q
     }
 
     //QgsDebugMsgLevel( "drawLabel " + txt, 4 );
-    QStringList multiLineList = QgsPalLabeling::splitToLines( txt, tmpLyr.wrapChar );
+    QStringList multiLineList = QgsPalLabeling::splitToLines( txt, tmpLyr.wrapChar, tmpLyr.autoWrapLength, tmpLyr.useMaxLineLengthForAutoWrap );
 
     QgsTextRenderer::HAlignment hAlign = QgsTextRenderer::AlignLeft;
     if ( tmpLyr.multilineAlign == QgsPalLayerSettings::MultiCenter )
@@ -622,8 +626,9 @@ void QgsVectorLayerLabelProvider::drawLabelPrivate( pal::LabelPosition *label, Q
     QgsTextRenderer::Component component;
     component.origin = outPt;
     component.rotation = label->getAlpha();
+
     QgsTextRenderer::drawTextInternal( drawType, context, tmpLyr.format(), component, multiLineList, labelfm,
-                                       hAlign, mEngine->engineSettings().testFlag( QgsLabelingEngineSettings::RenderOutlineLabels ), QgsTextRenderer::Label );
+                                       hAlign, QgsTextRenderer::Label );
 
   }
 

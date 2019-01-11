@@ -42,10 +42,15 @@ class APP_EXPORT QgsMeshRendererActiveDatasetWidget : public QWidget, private Ui
      * \param parent Parent object
      */
     QgsMeshRendererActiveDatasetWidget( QWidget *parent = nullptr );
-    ~QgsMeshRendererActiveDatasetWidget() = default;
 
     //! Associates mesh layer with the widget
     void setLayer( QgsMeshLayer *layer );
+
+    //! Returns index of the active scalar dataset group
+    int activeScalarDatasetGroup() const;
+
+    //! Returns index of the active vector dataset group
+    int activeVectorDatasetGroup() const;
 
     //! Gets index of the selected/active scalar dataset
     QgsMeshDatasetIndex activeScalarDataset() const;
@@ -58,25 +63,35 @@ class APP_EXPORT QgsMeshRendererActiveDatasetWidget : public QWidget, private Ui
 
   signals:
 
-    //! Emitted when active scalar dataset changed
-    void activeScalarDatasetChanged( QgsMeshDatasetIndex index );
+    //! Emitted when the current scalar group gets changed
+    void activeScalarGroupChanged( int groupIndex );
 
-    //! Emitted when active vector dataset changed
-    void activeVectorDatasetChanged( QgsMeshDatasetIndex index );
+    //! Emitted when the current vector group gets changed
+    void activeVectorGroupChanged( int groupIndex );
 
     //! Emitted when any settings related to rendering changed
     void widgetChanged();
 
   private slots:
-    void onActiveGroupChanged();
-    void onActiveDatasetChanged( int value );
-    void updateMetadata( QgsMeshDatasetIndex datasetIndex );
+    void onActiveScalarGroupChanged( int groupIndex );
+    void onActiveVectorGroupChanged( int groupIndex );
+    void onActiveTimeChanged( int value );
+    void onFirstTimeClicked();
+    void onPreviousTimeClicked();
+    void onNextTimeClicked();
+    void onLastTimeClicked();
+
+    QString metadata( QgsMeshDatasetIndex datasetIndex );
 
   private:
-    QgsMeshDatasetIndex datasetIndex() const;
-    void setSliderRange();
+    //! Loop through all dataset groups and find the maximum number of datasets
+    void setTimeRange();
+    void updateMetadata();
+    QString timeToString( double val );
 
     QgsMeshLayer *mMeshLayer = nullptr; // not owned
+    int mActiveScalarDatasetGroup = -1;
+    int mActiveVectorDatasetGroup = -1;
     QgsMeshDatasetIndex mActiveScalarDataset;
     QgsMeshDatasetIndex mActiveVectorDataset;
 };

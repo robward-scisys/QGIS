@@ -238,16 +238,26 @@ class CORE_EXPORT QgsRasterBlock
      *  \param row row index
      *  \param column column index
      *  \returns true if value is no data */
-    bool isNoData( int row, int column )
+    bool isNoData( int row, int column ) const
     {
       return isNoData( static_cast< qgssize >( row ) * mWidth + column );
     }
 
     /**
      * \brief Check if value at position is no data
+     *  \param row row index
+     *  \param column column index
+     *  \returns true if value is no data */
+    bool isNoData( qgssize row, qgssize column ) const
+    {
+      return isNoData( row * static_cast< qgssize >( mWidth ) + column );
+    }
+
+    /**
+     * \brief Check if value at position is no data
      *  \param index data matrix index (long type in Python)
      *  \returns true if value is no data */
-    bool isNoData( qgssize index )
+    bool isNoData( qgssize index ) const
     {
       if ( !mHasNoDataValue && !mNoDataBitmap )
         return false;
@@ -693,7 +703,7 @@ inline double QgsRasterBlock::readValue( void *data, Qgis::DataType type, qgssiz
       return static_cast< double >( ( static_cast< double * >( data ) )[index] );
       break;
     default:
-      QgsDebugMsg( QString( "Data type %1 is not supported" ).arg( type ) );
+      QgsDebugMsg( QStringLiteral( "Data type %1 is not supported" ).arg( type ) );
       break;
   }
 
@@ -728,7 +738,7 @@ inline void QgsRasterBlock::writeValue( void *data, Qgis::DataType type, qgssize
       ( static_cast< double * >( data ) )[index] = value;
       break;
     default:
-      QgsDebugMsg( QString( "Data type %1 is not supported" ).arg( type ) );
+      QgsDebugMsg( QStringLiteral( "Data type %1 is not supported" ).arg( type ) );
       break;
   }
 }

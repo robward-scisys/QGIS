@@ -21,8 +21,9 @@
 #include "qgs3dutils.h"
 
 #include "qgsmapcanvas.h"
+#include "qgsmapthemecollection.h"
 #include "qgsrasterlayer.h"
-//#include "qgsproject.h"
+#include "qgsproject.h"
 
 Qgs3DMapConfigWidget::Qgs3DMapConfigWidget( Qgs3DMapSettings *map, QgsMapCanvas *mainCanvas, QWidget *parent )
   : QWidget( parent )
@@ -33,6 +34,13 @@ Qgs3DMapConfigWidget::Qgs3DMapConfigWidget( Qgs3DMapSettings *map, QgsMapCanvas 
 
   Q_ASSERT( map );
   Q_ASSERT( mainCanvas );
+
+  spinTerrainScale->setClearValue( 1.0 );
+  spinTerrainResolution->setClearValue( 16 );
+  spinTerrainSkirtHeight->setClearValue( 10 );
+  spinMapResolution->setClearValue( 512 );
+  spinScreenError->setClearValue( 3 );
+  spinGroundError->setClearValue( 1 );
 
   cboTerrainLayer->setAllowEmptyLayer( true );
   cboTerrainLayer->setFilters( QgsMapLayerProxyModel::RasterLayer );
@@ -61,6 +69,20 @@ Qgs3DMapConfigWidget::Qgs3DMapConfigWidget( Qgs3DMapSettings *map, QgsMapCanvas 
   chkShowTileInfo->setChecked( mMap->showTerrainTilesInfo() );
   chkShowBoundingBoxes->setChecked( mMap->showTerrainBoundingBoxes() );
   chkShowCameraViewCenter->setChecked( mMap->showCameraViewCenter() );
+
+  groupTerrainShading->setChecked( mMap->isTerrainShadingEnabled() );
+  widgetTerrainMaterial->setDiffuseVisible( false );
+  widgetTerrainMaterial->setMaterial( mMap->terrainShadingMaterial() );
+
+  // populate combo box with map themes
+  const QStringList mapThemeNames = QgsProject::instance()->mapThemeCollection()->mapThemes();
+  cboTerrainMapTheme->addItem( QString() );  // empty item for no map theme
+  for ( QString themeName : mapThemeNames )
+    cboTerrainMapTheme->addItem( themeName );
+
+  cboTerrainMapTheme->setCurrentText( mMap->terrainMapTheme() );
+
+  widgetLights->setPointLights( mMap->pointLights() );
 
   connect( cboTerrainLayer, static_cast<void ( QComboBox::* )( int )>( &QgsMapLayerComboBox::currentIndexChanged ), this, &Qgs3DMapConfigWidget::onTerrainLayerChanged );
   connect( spinMapResolution, static_cast<void ( QSpinBox::* )( int )>( &QSpinBox::valueChanged ), this, &Qgs3DMapConfigWidget::updateMaxZoomLevel );
@@ -127,6 +149,13 @@ void Qgs3DMapConfigWidget::apply()
   mMap->setShowTerrainTilesInfo( chkShowTileInfo->isChecked() );
   mMap->setShowTerrainBoundingBoxes( chkShowBoundingBoxes->isChecked() );
   mMap->setShowCameraViewCenter( chkShowCameraViewCenter->isChecked() );
+
+  mMap->setTerrainShadingEnabled( groupTerrainShading->isChecked() );
+  mMap->setTerrainShadingMaterial( widgetTerrainMaterial->material() );
+
+  mMap->setTerrainMapTheme( cboTerrainMapTheme->currentText() );
+
+  mMap->setPointLights( widgetLights->pointLights() );
 }
 
 void Qgs3DMapConfigWidget::onTerrainLayerChanged()
@@ -157,5 +186,5 @@ void Qgs3DMapConfigWidget::updateMaxZoomLevel()
 
   double tile0width = tGen->extent().width();
   int zoomLevel = Qgs3DUtils::maxZoomLevel( tile0width, spinMapResolution->value(), spinGroundError->value() );
-  labelZoomLevels->setText( QString( "0 - %1" ).arg( zoomLevel ) );
+  labelZoomLevels->setText( QStringLiteral( "0 - %1" ).arg( zoomLevel ) );
 }

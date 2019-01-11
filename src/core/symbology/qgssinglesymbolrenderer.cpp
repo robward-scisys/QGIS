@@ -93,7 +93,7 @@ void QgsSingleSymbolRenderer::setSymbol( QgsSymbol *s )
 
 QString QgsSingleSymbolRenderer::dump() const
 {
-  return mSymbol ? QStringLiteral( "SINGLE: %1" ).arg( mSymbol->dump() ) : QLatin1String( "" );
+  return mSymbol ? QStringLiteral( "SINGLE: %1" ).arg( mSymbol->dump() ) : QString();
 }
 
 QgsSingleSymbolRenderer *QgsSingleSymbolRenderer::clone() const
@@ -178,7 +178,7 @@ QgsFeatureRenderer *QgsSingleSymbolRenderer::createFromSld( QDomElement &element
   QDomElement ruleElem = element.firstChildElement( QStringLiteral( "Rule" ) );
   if ( ruleElem.isNull() )
   {
-    QgsDebugMsg( "no Rule elements found!" );
+    QgsDebugMsg( QStringLiteral( "no Rule elements found!" ) );
     return nullptr;
   }
 

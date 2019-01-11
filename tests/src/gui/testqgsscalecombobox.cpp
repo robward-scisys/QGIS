@@ -63,7 +63,7 @@ void TestQgsScaleComboBox::init()
 {
   // Create a combobox, and init with predefined scales.
   s = new QgsScaleComboBox();
-  QgsDebugMsg( QString( "Initial scale is %1" ).arg( s->scaleString() ) );
+  QgsDebugMsg( QStringLiteral( "Initial scale is %1" ).arg( s->scaleString() ) );
 }
 
 void TestQgsScaleComboBox::basic()
@@ -176,7 +176,7 @@ void TestQgsScaleComboBox::toDouble()
   //bad
   QgsScaleComboBox::toDouble( QStringLiteral( "abc" ), &ok );
   QVERIFY( !ok );
-  QgsScaleComboBox::toDouble( QStringLiteral( "" ), &ok );
+  QgsScaleComboBox::toDouble( QString(), &ok );
   QVERIFY( !ok );
   QgsScaleComboBox::toDouble( QStringLiteral( "1:" ), &ok );
   QVERIFY( !ok );

@@ -59,6 +59,7 @@ class aspect(GdalAlgorithm):
         self.addParameter(QgsProcessingParameterRasterLayer(self.INPUT, self.tr('Input layer')))
         self.addParameter(QgsProcessingParameterBand(self.BAND,
                                                      self.tr('Band number'),
+                                                     1,
                                                      parentLayerParameterName=self.INPUT))
         self.addParameter(QgsProcessingParameterBoolean(self.TRIG_ANGLE,
                                                         self.tr('Return trigonometric angle instead of azimuth'),
@@ -74,7 +75,7 @@ class aspect(GdalAlgorithm):
                                                         defaultValue=False))
 
         options_param = QgsProcessingParameterString(self.OPTIONS,
-                                                     self.tr('Additional creation parameters'),
+                                                     self.tr('Additional creation options'),
                                                      defaultValue='',
                                                      optional=True)
         options_param.setFlags(options_param.flags() | QgsProcessingParameterDefinition.FlagAdvanced)

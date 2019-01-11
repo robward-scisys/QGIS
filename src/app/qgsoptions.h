@@ -61,8 +61,7 @@ class APP_EXPORT QgsOptions : public QgsOptionsDialogBase, private Ui::QgsOption
      */
     void setCurrentPage( const QString &pageWidgetName );
 
-    QMap<QString, QString> pageWidgetNameMap();
-
+    void setCurrentPage( int pageNumber );
 
   public slots:
     void cbxProjectDefaultNew_toggled( bool checked );
@@ -115,9 +114,6 @@ class APP_EXPORT QgsOptions : public QgsOptionsDialogBase, private Ui::QgsOption
 
     //! Slot to select custom font family choice for app
     void mFontFamilyComboBox_currentFontChanged( const QFont &font );
-
-    //! Slot to set whether to use custom group boxes
-    void useCustomGroupBox( bool chkd );
 
     void mProxyTypeComboBox_currentIndexChanged( int idx );
 
@@ -272,7 +268,9 @@ class APP_EXPORT QgsOptions : public QgsOptionsDialogBase, private Ui::QgsOption
 
     void updateActionsForCurrentColorScheme( QgsColorScheme *scheme );
 
+    void checkPageWidgetNameMap();
 
+    friend class QgsAppScreenShots;
 };
 
 #endif // #ifndef QGSOPTIONS_H

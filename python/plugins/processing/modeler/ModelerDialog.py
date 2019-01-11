@@ -35,6 +35,7 @@ from qgis.PyQt import uic
 from qgis.PyQt.QtCore import (
     Qt,
     QCoreApplication,
+    QDir,
     QRectF,
     QMimeData,
     QPoint,
@@ -44,7 +45,8 @@ from qgis.PyQt.QtCore import (
     QSizeF,
     pyqtSignal,
     QDataStream,
-    QIODevice)
+    QIODevice,
+    QUrl)
 from qgis.PyQt.QtWidgets import (QGraphicsView,
                                  QTreeWidget,
                                  QMessageBox,
@@ -69,6 +71,7 @@ from qgis.PyQt.QtPrintSupport import QPrinter
 from qgis.core import (Qgis,
                        QgsApplication,
                        QgsProcessingAlgorithm,
+                       QgsProject,
                        QgsSettings,
                        QgsMessageLog,
                        QgsProcessingUtils,
@@ -88,6 +91,7 @@ from processing.modeler.ModelerParameterDefinitionDialog import ModelerParameter
 from processing.modeler.ModelerParametersDialog import ModelerParametersDialog
 from processing.modeler.ModelerUtils import ModelerUtils
 from processing.modeler.ModelerScene import ModelerScene
+from processing.modeler.ProjectProvider import PROJECT_PROVIDER_ID
 from qgis.utils import iface
 
 
@@ -245,13 +249,18 @@ class ModelerDialog(BASE, WIDGET):
         except:
             pass
 
-        self.mToolbar.setIconSize(iface.iconSize())
+        if iface is not None:
+            self.mToolbar.setIconSize(iface.iconSize())
+            self.setStyleSheet(iface.mainWindow().styleSheet())
+
         self.mActionOpen.setIcon(
             QgsApplication.getThemeIcon('/mActionFileOpen.svg'))
         self.mActionSave.setIcon(
             QgsApplication.getThemeIcon('/mActionFileSave.svg'))
         self.mActionSaveAs.setIcon(
             QgsApplication.getThemeIcon('/mActionFileSaveAs.svg'))
+        self.mActionSaveInProject.setIcon(
+            QgsApplication.getThemeIcon('/mAddToProject.svg'))
         self.mActionZoomActual.setIcon(
             QgsApplication.getThemeIcon('/mActionZoomActual.svg'))
         self.mActionZoomIn.setIcon(
@@ -414,6 +423,7 @@ class ModelerDialog(BASE, WIDGET):
         self.mActionOpen.triggered.connect(self.openModel)
         self.mActionSave.triggered.connect(self.save)
         self.mActionSaveAs.triggered.connect(self.saveAs)
+        self.mActionSaveInProject.triggered.connect(self.saveInProject)
         self.mActionZoomIn.triggered.connect(self.zoomIn)
         self.mActionZoomOut.triggered.connect(self.zoomOut)
         self.mActionZoomActual.triggered.connect(self.zoomActual)
@@ -477,7 +487,7 @@ class ModelerDialog(BASE, WIDGET):
             self.bar.pushMessage("", self.tr("Model doesn't contain any algorithm and/or parameter and can't be executed"), level=Qgis.Warning, duration=5)
             return
 
-        dlg = AlgorithmDialog(self.model)
+        dlg = AlgorithmDialog(self.model.create(), parent=iface.mainWindow())
         dlg.exec_()
 
     def save(self):
@@ -485,6 +495,23 @@ class ModelerDialog(BASE, WIDGET):
 
     def saveAs(self):
         self.saveModel(True)
+
+    def saveInProject(self):
+        if not self.can_save():
+            return
+
+        self.model.setName(str(self.textName.text()))
+        self.model.setGroup(str(self.textGroup.text()))
+        self.model.setSourceFilePath(None)
+
+        project_provider = QgsApplication.processingRegistry().providerById(PROJECT_PROVIDER_ID)
+        project_provider.add_model(self.model)
+
+        self.update_model.emit()
+        self.bar.pushMessage("", self.tr("Model was saved inside current project"), level=Qgis.Success, duration=5)
+
+        self.hasChanged = False
+        QgsProject.instance().setDirty(True)
 
     def zoomIn(self):
         self.view.setTransformationAnchor(QGraphicsView.NoAnchor)
@@ -545,7 +572,7 @@ class ModelerDialog(BASE, WIDGET):
 
         img.save(filename)
 
-        self.bar.pushMessage("", self.tr("Model was correctly exported as image"), level=Qgis.Success, duration=5)
+        self.bar.pushMessage("", self.tr("Successfully exported model as image to <a href=\"{}\">{}</a>").format(QUrl.fromLocalFile(filename).toString(), QDir.toNativeSeparators(filename)), level=Qgis.Success, duration=5)
         self.repaintModel(controls=True)
 
     def exportAsPdf(self):
@@ -573,7 +600,7 @@ class ModelerDialog(BASE, WIDGET):
         self.scene.render(painter, printerRect, totalRect)
         painter.end()
 
-        self.bar.pushMessage("", self.tr("Model was correctly exported as PDF"), level=Qgis.Success, duration=5)
+        self.bar.pushMessage("", self.tr("Successfully exported model as PDF to <a href=\"{}\">{}</a>").format(QUrl.fromLocalFile(filename).toString(), QDir.toNativeSeparators(filename)), level=Qgis.Success, duration=5)
         self.repaintModel(controls=True)
 
     def exportAsSvg(self):
@@ -601,13 +628,13 @@ class ModelerDialog(BASE, WIDGET):
         self.scene.render(painter, svgRect, totalRect)
         painter.end()
 
-        self.bar.pushMessage("", self.tr("Model was correctly exported as SVG"), level=Qgis.Success, duration=5)
+        self.bar.pushMessage("", self.tr("Successfully exported model as SVG to <a href=\"{}\">{}</a>").format(QUrl.fromLocalFile(filename).toString(), QDir.toNativeSeparators(filename)), level=Qgis.Success, duration=5)
         self.repaintModel(controls=True)
 
     def exportAsPython(self):
         filename, filter = QFileDialog.getSaveFileName(self,
                                                        self.tr('Save Model As Python Script'), '',
-                                                       self.tr('Python files (*.py *.PY)'))
+                                                       self.tr('Processing scripts (*.py *.PY)'))
         if not filename:
             return
 
@@ -618,13 +645,23 @@ class ModelerDialog(BASE, WIDGET):
         with codecs.open(filename, 'w', encoding='utf-8') as fout:
             fout.write(text)
 
-        self.bar.pushMessage("", self.tr("Model was correctly exported as python script"), level=Qgis.Success, duration=5)
+        self.bar.pushMessage("", self.tr("Successfully exported model as python script to <a href=\"{}\">{}</a>").format(QUrl.fromLocalFile(filename).toString(), QDir.toNativeSeparators(filename)), level=Qgis.Success, duration=5)
 
-    def saveModel(self, saveAs):
+    def can_save(self):
+        """
+        Tests whether a model can be saved, or if it is not yet valid
+        :return: bool
+        """
         if str(self.textName.text()).strip() == '':
             self.bar.pushWarning(
                 "", self.tr('Please a enter model name before saving')
             )
+            return False
+
+        return True
+
+    def saveModel(self, saveAs):
+        if not self.can_save():
             return
         self.model.setName(str(self.textName.text()))
         self.model.setGroup(str(self.textGroup.text()))
@@ -634,7 +671,7 @@ class ModelerDialog(BASE, WIDGET):
             filename, filter = QFileDialog.getSaveFileName(self,
                                                            self.tr('Save Model'),
                                                            ModelerUtils.modelsFolders()[0],
-                                                           self.tr('Processing models (*.model3)'))
+                                                           self.tr('Processing models (*.model3 *.MODEL3)'))
             if filename:
                 if not filename.endswith('.model3'):
                     filename += '.model3'
@@ -651,7 +688,10 @@ class ModelerDialog(BASE, WIDGET):
                     )
                 return
             self.update_model.emit()
-            self.bar.pushMessage("", self.tr("Model was correctly saved"), level=Qgis.Success, duration=5)
+            if saveAs:
+                self.bar.pushMessage("", self.tr("Model was correctly saved to <a href=\"{}\">{}</a>").format(QUrl.fromLocalFile(filename).toString(), QDir.toNativeSeparators(filename)), level=Qgis.Success, duration=5)
+            else:
+                self.bar.pushMessage("", self.tr("Model was correctly saved"), level=Qgis.Success, duration=5)
 
             self.hasChanged = False
 

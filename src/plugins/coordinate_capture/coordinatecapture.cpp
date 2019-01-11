@@ -128,7 +128,7 @@ void CoordinateCapture::initGui()
   mpCanvasEdit->setToolTip( tr( "Coordinate in map canvas coordinate reference system (lat,lon or east,north)" ) );
 
   QPushButton *mypCopyButton = new QPushButton( mypWidget );
-  mypCopyButton->setText( tr( "Copy to clipboard" ) );
+  mypCopyButton->setText( tr( "Copy to Clipboard" ) );
   connect( mypCopyButton, &QAbstractButton::clicked, this, &CoordinateCapture::copy );
 
   mpTrackMouseButton = new QToolButton( mypWidget );
@@ -138,14 +138,14 @@ void CoordinateCapture::initGui()
 
   // Create the action for tool
   mpCaptureButton = new QPushButton( mypWidget );
-  mpCaptureButton->setText( tr( "Start capture" ) );
+  mpCaptureButton->setText( tr( "Start Capture" ) );
   mpCaptureButton->setToolTip( tr( "Click to enable coordinate capture" ) );
   mpCaptureButton->setIcon( QIcon( ":/coordinate_capture/coordinate_capture.png" ) );
   mpCaptureButton->setWhatsThis( tr( "Click on the map to view coordinates and capture to clipboard." ) );
   connect( mpCaptureButton, &QAbstractButton::clicked, this, &CoordinateCapture::run );
 
   // Set the icons
-  setCurrentTheme( QLatin1String( "" ) );
+  setCurrentTheme( QString() );
 
   mypLayout->addWidget( mypUserCrsToolButton, 0, 0 );
   mypLayout->addWidget( mpUserCrsEdit, 0, 1 );
@@ -296,7 +296,7 @@ QString CoordinateCapture::getIconPath( const QString &name )
   }
   else
   {
-    return QLatin1String( "" );
+    return QString();
   }
 }
 

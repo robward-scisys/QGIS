@@ -46,15 +46,14 @@ class QgsMeshVectorRenderer
   public:
     //! Ctor
     QgsMeshVectorRenderer( const QgsTriangularMesh &m,
-                           const QVector<double> &datasetValuesX,
-                           const QVector<double> &datasetValuesY,
+                           const QgsMeshDataBlock &datasetValues,
                            const QVector<double> &datasetValuesMag,
                            double datasetMagMaximumValue,
                            double datasetMagMinimumValue,
                            bool dataIsOnVertices,
                            const QgsMeshRendererVectorSettings &settings,
                            QgsRenderContext &context,
-                           const QSize &size );
+                           QSize size );
     //! Dtor
     ~QgsMeshVectorRenderer();
 
@@ -65,9 +64,11 @@ class QgsMeshVectorRenderer
 
   private:
     //! Draws for data defined on vertices
-    void drawVectorDataOnVertices();
+    void drawVectorDataOnVertices( const QList<int> &trianglesInExtent );
     //! Draws for data defined on face centers
-    void drawVectorDataOnFaces();
+    void drawVectorDataOnFaces( const QList<int> &trianglesInExtent );
+    //! Draws data on user-defined grid
+    void drawVectorDataOnGrid( const QList<int> &trianglesInExtent );
     //! Draws arrow from start point and vector data
     void drawVectorArrow( const QgsPointXY &lineStart, double xVal, double yVal, double magnitude );
     //! Calculates the end point of the arrow based on start point and vector data
@@ -81,10 +82,16 @@ class QgsMeshVectorRenderer
                             double magnitude //in
                           );
 
+    /**
+     * Calculates the buffer size
+     * needed to draw arrows which have
+     * start or end point outside the
+     * visible canvas extent (in pixels)
+     */
+    double calcExtentBufferSize() const;
 
     const QgsTriangularMesh &mTriangularMesh;
-    const QVector<double> &mDatasetValuesX;
-    const QVector<double> &mDatasetValuesY;
+    const QgsMeshDataBlock &mDatasetValues;
     const QVector<double> &mDatasetValuesMag; //magnitudes
     double mMinMag = 0.0;
     double mMaxMag = 0.0;
@@ -92,6 +99,7 @@ class QgsMeshVectorRenderer
     const QgsMeshRendererVectorSettings &mCfg;
     bool mDataOnVertices = true;
     QSize mOutputSize;
+    QgsRectangle mBufferedExtent;
 };
 
 ///@endcond

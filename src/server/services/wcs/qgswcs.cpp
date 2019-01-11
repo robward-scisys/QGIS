@@ -24,7 +24,7 @@
 #include "qgswcsgetcoverage.h"
 
 #define QSTR_COMPARE( str, lit )\
-  (str.compare( QStringLiteral( lit ), Qt::CaseInsensitive ) == 0)
+  (str.compare( QLatin1String( lit ), Qt::CaseInsensitive ) == 0)
 
 namespace QgsWcs
 {
@@ -102,7 +102,7 @@ namespace QgsWcs
   };
 
 
-} // namespace QgsWfs
+} // namespace QgsWcs
 
 /**
  * \ingroup server
@@ -115,7 +115,7 @@ class QgsWcsModule: public QgsServiceModule
   public:
     void registerSelf( QgsServiceRegistry &registry, QgsServerInterface *serverIface ) override
     {
-      QgsDebugMsg( "WCSModule::registerSelf called" );
+      QgsDebugMsg( QStringLiteral( "WCSModule::registerSelf called" ) );
       registry.registerService( new  QgsWcs::Service( serverIface ) );
     }
 };

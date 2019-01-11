@@ -38,6 +38,7 @@
 #include "qgssettings.h"
 #include "qgsstatusbar.h"
 #include "gmath.h"
+#include "qgsmapcanvas.h"
 
 // QWT Charting widget
 
@@ -260,7 +261,7 @@ QgsGpsInformationWidget::QgsGpsInformationWidget( QgsMapCanvas *thepCanvas, QWid
   //SLM - added functionality
   mLogFile = nullptr;
 
-  connect( QgisApp::instance()->layerTreeView(), &QgsLayerTreeView::currentLayerChanged,
+  connect( QgisApp::instance(), &QgisApp::activeLayerChanged,
            this, &QgsGpsInformationWidget::updateCloseFeatureButton );
 
   mStackedWidget->setCurrentIndex( 3 ); // force to Options
@@ -760,11 +761,11 @@ void QgsGpsInformationWidget::displayGPSInformation( const QgsGpsInformation &in
       mTxtVacc->setEnabled( false );
       mTxtVacc->setText( tr( "Not available" ) );
     }
-    mTxtFixMode->setText( info.fixMode == 'A' ? tr( "Automatic" ) : info.fixMode == 'M' ? tr( "Manual" ) : QLatin1String( "" ) ); // A=automatic 2d/3d, M=manual; allowing for anything else
+    mTxtFixMode->setText( info.fixMode == 'A' ? tr( "Automatic" ) : info.fixMode == 'M' ? tr( "Manual" ) : QString() ); // A=automatic 2d/3d, M=manual; allowing for anything else
     mTxtFixType->setText( info.fixType == 3 ? tr( "3D" ) : info.fixType == 2 ? tr( "2D" ) : info.fixType == 1 ? tr( "No fix" ) : QString::number( info.fixType ) ); // 1=no fix, 2=2D, 3=3D; allowing for anything else
-    mTxtQuality->setText( info.quality == 2 ? tr( "Differential" ) : info.quality == 1 ? tr( "Non-differential" ) : info.quality == 0 ? tr( "No position" ) : info.quality > 2 ? QString::number( info.quality ) : QLatin1String( "" ) ); // allowing for anything else
+    mTxtQuality->setText( info.quality == 2 ? tr( "Differential" ) : info.quality == 1 ? tr( "Non-differential" ) : info.quality == 0 ? tr( "No position" ) : info.quality > 2 ? QString::number( info.quality ) : QString() ); // allowing for anything else
     mTxtSatellitesUsed->setText( QString::number( info.satellitesUsed ) );
-    mTxtStatus->setText( info.status == 'A' ? tr( "Valid" ) : info.status == 'V' ? tr( "Invalid" ) : QLatin1String( "" ) );
+    mTxtStatus->setText( info.status == 'A' ? tr( "Valid" ) : info.status == 'V' ? tr( "Invalid" ) : QString() );
   } //position
 
   // Avoid refreshing / panning if we haven't moved
@@ -833,7 +834,7 @@ void QgsGpsInformationWidget::mBtnAddVertex_clicked()
 
 void QgsGpsInformationWidget::addVertex()
 {
-  QgsDebugMsg( "Adding Vertex" );
+  QgsDebugMsg( QStringLiteral( "Adding Vertex" ) );
 
   if ( !mpRubberBand )
   {
@@ -1093,10 +1094,8 @@ void QgsGpsInformationWidget::populateDevices()
 
 void QgsGpsInformationWidget::createRubberBand()
 {
-  if ( mpRubberBand )
-  {
-    delete mpRubberBand;
-  }
+  delete mpRubberBand;
+
   mpRubberBand = new QgsRubberBand( mpCanvas, QgsWkbTypes::LineGeometry );
   mpRubberBand->setColor( mBtnTrackColor->color() );
   mpRubberBand->setWidth( mSpinTrackWidth->value() );
@@ -1140,6 +1139,9 @@ void QgsGpsInformationWidget::logNmeaSentence( const QString &nmeaString )
 void QgsGpsInformationWidget::updateCloseFeatureButton( QgsMapLayer *lyr )
 {
   QgsVectorLayer *vlayer = qobject_cast<QgsVectorLayer *>( lyr );
+
+  if ( !( vlayer && vlayer->isValid() ) )
+    return;
 
   // Add feature button tracks edit state of layer
   if ( vlayer != mpLastLayer )

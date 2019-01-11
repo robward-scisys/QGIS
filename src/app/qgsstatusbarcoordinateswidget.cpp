@@ -14,6 +14,7 @@
 ***************************************************************************/
 
 #include <QFont>
+#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -27,6 +28,7 @@
 #include "qgsmapcanvas.h"
 #include "qgsproject.h"
 #include "qgscoordinateutils.h"
+#include "qgsvectorlayer.h"
 
 
 QgsStatusBarCoordinatesWidget::QgsStatusBarCoordinatesWidget( QWidget *parent )
@@ -57,10 +59,6 @@ QgsStatusBarCoordinatesWidget::QgsStatusBarCoordinatesWidget( QWidget *parent )
 
   QRegExp coordValidator( "[+-]?\\d+\\.?\\d*\\s*,\\s*[+-]?\\d+\\.?\\d*" );
   mCoordsEditValidator = new QRegExpValidator( coordValidator, this );
-  mLineEdit->setWhatsThis( tr( "Shows the map coordinates at the "
-                               "current cursor position. The display is continuously updated "
-                               "as the mouse is moved. It also allows editing to set the canvas "
-                               "center to a given position. The format is longitude,latitude or east,north" ) );
   mLineEdit->setToolTip( tr( "Current map coordinate (longitude,latitude or east,north)" ) );
 
   //toggle to switch between mouse pos and extents display in status bar widget
@@ -117,7 +115,19 @@ void QgsStatusBarCoordinatesWidget::validateCoordinates()
   {
     return;
   }
-  if ( mLineEdit->text() == QLatin1String( "dizzy" ) )
+  else if ( mLineEdit->text() == QLatin1String( "world" ) )
+  {
+    world();
+  }
+  if ( mLineEdit->text() == QLatin1String( "contributors" ) )
+  {
+    contributors();
+  }
+  else if ( mLineEdit->text() == QLatin1String( "hackfests" ) )
+  {
+    hackfests();
+  }
+  else if ( mLineEdit->text() == QLatin1String( "dizzy" ) )
   {
     // sometimes you may feel a bit dizzy...
     if ( mDizzyTimer->isActive() )
@@ -194,6 +204,52 @@ void QgsStatusBarCoordinatesWidget::dizzy()
   mMapCanvas->setTransform( matrix );
 }
 
+void QgsStatusBarCoordinatesWidget::contributors()
+{
+  if ( !mMapCanvas )
+  {
+    return;
+  }
+  QString fileName = QgsApplication::pkgDataPath() + QStringLiteral( "/resources/data/contributors.json" );
+  QFileInfo fileInfo = QFileInfo( fileName );
+  QgsVectorLayer *layer = new QgsVectorLayer( fileInfo.absoluteFilePath(),
+      tr( "QGIS Contributors" ), QStringLiteral( "ogr" ) );
+  // Register this layer with the layers registry
+  QgsProject::instance()->addMapLayer( layer );
+  layer->setAutoRefreshInterval( 500 );
+  layer->setAutoRefreshEnabled( true );
+}
+
+void QgsStatusBarCoordinatesWidget::world()
+{
+  if ( !mMapCanvas )
+  {
+    return;
+  }
+  QString fileName = QgsApplication::pkgDataPath() + QStringLiteral( "/resources/data/world_map.shp" );
+  QFileInfo fileInfo = QFileInfo( fileName );
+  QgsVectorLayer *layer = new QgsVectorLayer( fileInfo.absoluteFilePath(),
+      tr( "World Map" ), QStringLiteral( "ogr" ) );
+  // Register this layer with the layers registry
+  QgsProject::instance()->addMapLayer( layer );
+}
+
+void QgsStatusBarCoordinatesWidget::hackfests()
+{
+  if ( !mMapCanvas )
+  {
+    return;
+  }
+  QString fileName = QgsApplication::pkgDataPath() + QStringLiteral( "/resources/data/qgis-hackfests.json" );
+  QFileInfo fileInfo = QFileInfo( fileName );
+  QgsVectorLayer *layer = new QgsVectorLayer( fileInfo.absoluteFilePath(),
+      tr( "QGIS Hackfests" ), QStringLiteral( "ogr" ) );
+  // Register this layer with the layers registry
+  QgsProject::instance()->addMapLayer( layer );
+  layer->setAutoRefreshInterval( 500 );
+  layer->setAutoRefreshEnabled( true );
+}
+
 void QgsStatusBarCoordinatesWidget::extentsViewToggled( bool flag )
 {
   if ( flag )
@@ -257,7 +313,7 @@ void QgsStatusBarCoordinatesWidget::ensureCoordinatesVisible()
 {
 
   //ensure the label is big (and small) enough
-  int width = std::max( mLineEdit->fontMetrics().width( mLineEdit->text() ) + 10, mMinimumWidth );
+  int width = std::max( mLineEdit->fontMetrics().width( mLineEdit->text() ) + 16, mMinimumWidth );
   if ( mLineEdit->minimumWidth() < width || ( mLineEdit->minimumWidth() - width ) > mTwoCharSize )
   {
     mLineEdit->setMinimumWidth( width );

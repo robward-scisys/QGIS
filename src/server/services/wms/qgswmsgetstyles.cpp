@@ -18,13 +18,18 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
+
+
 #include "qgswmsutils.h"
+#include "qgswmsserviceexception.h"
 #include "qgswmsgetstyles.h"
 #include "qgsserverprojectutils.h"
 
+#include "qgsproject.h"
 #include "qgsrenderer.h"
 #include "qgsvectorlayer.h"
 #include "qgsmaplayerstylemanager.h"
+
 
 namespace QgsWms
 {
@@ -133,7 +138,7 @@ namespace QgsWms
       // WMS restricted layers
       QStringList restrictedLayers = QgsServerProjectUtils::wmsRestrictedLayers( *project );
 
-      Q_FOREACH ( QgsMapLayer *layer, project->mapLayers() )
+      for ( QgsMapLayer *layer : project->mapLayers() )
       {
         QString name = layer->name();
         if ( useLayerIds )
@@ -172,7 +177,7 @@ namespace QgsWms
           if ( vlayer->isSpatial() )
           {
             QString currentStyle = vlayer->styleManager()->currentStyle();
-            Q_FOREACH ( QString styleName, vlayer->styleManager()->styles() )
+            for ( const QString &styleName : vlayer->styleManager()->styles() )
             {
               vlayer->styleManager()->setCurrentStyle( styleName );
               QDomElement styleElem = vlayer->renderer()->writeSld( myDocument, styleName );
@@ -188,7 +193,7 @@ namespace QgsWms
   }
 
 
-} // samespace QgsWms
+} // namespace QgsWms
 
 
 

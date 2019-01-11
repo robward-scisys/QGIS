@@ -18,13 +18,13 @@
 
 #include "ui_qgsexpressionselectiondialogbase.h"
 #include "qgis.h"
-
-#include "qgsmapcanvas.h"
-#include "qgsmessagebar.h"
 #include "qgshelp.h"
 
 #include <QDialog>
 #include "qgis_gui.h"
+
+class QgsMapCanvas;
+class QgsMessageBar;
 
 /**
  * \ingroup gui
@@ -111,9 +111,11 @@ class GUI_EXPORT QgsExpressionSelectionDialog : public QDialog, private Ui::QgsE
 
   private:
     void saveRecent();
+    void pushSelectedFeaturesMessage();
     QgsVectorLayer *mLayer = nullptr;
     QgsMessageBar *mMessageBar = nullptr;
     QgsMapCanvas *mMapCanvas = nullptr;
+
 };
 
 #endif

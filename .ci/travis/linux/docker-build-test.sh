@@ -47,6 +47,7 @@ cmake \
  -DSUPPRESS_QT_WARNINGS=ON \
  -DENABLE_MODELTEST=ON \
  -DENABLE_PGTEST=ON \
+ -DENABLE_MSSQLTEST=ON \
  -DWITH_QSPATIALITE=ON \
  -DWITH_QWTPOLAR=OFF \
  -DWITH_APIDOC=OFF \
@@ -56,7 +57,12 @@ cmake \
  -DWITH_SERVER=ON \
  -DDISABLE_DEPRECATED=ON \
  -DPYTHON_TEST_WRAPPER="timeout -sSIGSEGV 55s"\
- -DCXX_EXTRA_FLAGS="${CLANG_WARNINGS}" ..
+ -DCXX_EXTRA_FLAGS="${CLANG_WARNINGS}" \
+ -DWERROR=TRUE \
+ -DQT5_3DEXTRA_LIBRARY="/usr/lib/x86_64-linux-gnu/libQt53DExtras.so" \
+ -DQT5_3DEXTRA_INCLUDE_DIR="/root/QGIS/external/qt3dextra-headers" \
+ -DCMAKE_PREFIX_PATH="/root/QGIS/external/qt3dextra-headers/cmake" \
+ ..
 echo "travis_fold:end:cmake"
 
 #######
@@ -104,6 +110,36 @@ export PGDATABASE=qgis_test
 pushd /root/QGIS > /dev/null
 /root/QGIS/tests/testdata/provider/testdata_pg.sh
 popd > /dev/null # /root/QGIS
+
+##############################
+# Restore SQL Server test data
+##############################
+
+echo "Importing SQL Server test data..."
+
+export SQLUSER=sa
+export SQLHOST=mssql
+export SQLPORT=1433
+export SQLPASSWORD='<YourStrong!Passw0rd>'
+export SQLDATABASE=qgis_test
+
+export PATH=$PATH:/opt/mssql-tools/bin
+
+pushd /root/QGIS > /dev/null
+/root/QGIS/tests/testdata/provider/testdata_mssql.sh
+popd > /dev/null # /root/QGIS
+
+echo "Setting up DSN for test SQL Server"
+
+cat <<EOT > /etc/odbc.ini
+[ODBC Data Sources]
+testsqlserver = ODBC Driver 17 for SQL Server
+
+[testsqlserver]
+Driver       = ODBC Driver 17 for SQL Server
+Description  = Test SQL Server
+Server       = mssql
+EOT
 
 ###########
 # Run tests

@@ -101,6 +101,20 @@ Returns a list of points within the curve.
 Returns the number of points in the curve.
 %End
 
+    int __len__() const;
+%Docstring
+    Returns the number of points in the curve.
+%End
+%MethodCode
+    sipRes = sipCpp->numPoints();
+%End
+
+    //! Ensures that bool(obj) returns true (otherwise __len__() would be used)
+    int __bool__() const;
+%MethodCode
+    sipRes = true;
+%End
+
     virtual void sumUpArea( double &sum /Out/ ) const = 0;
 %Docstring
 Sums up the area of the curve by iterating over the vertices (shoelace formula).
@@ -120,10 +134,10 @@ Sums up the area of the curve by iterating over the vertices (shoelace formula).
 Returns the point and vertex id of a point within the curve.
 
 :param node: node number, where the first node is 0
-:param point: will be set to point at corresponding node in the curve
 :param type: will be set to the vertex type of the node
 
-:return: true if node exists within the curve
+:return: - true if node exists within the curve
+         - point:  will be set to point at corresponding node in the curve
 %End
 
     virtual QgsCurve *reversed() const = 0 /Factory/;
@@ -182,6 +196,33 @@ Returns the y-coordinate of the specified node in the line string.
 Returns a QPolygonF representing the points.
 %End
 
+    virtual QgsPoint *interpolatePoint( double distance ) const = 0 /Factory/;
+%Docstring
+Returns an interpolated point on the curve at the specified ``distance``.
+
+If z or m values are present, the output z and m will be interpolated using
+the existing vertices' z or m values.
+
+If distance is negative, or is greater than the length of the curve, a None
+will be returned.
+
+.. versionadded:: 3.4
+%End
+
+    virtual QgsCurve *curveSubstring( double startDistance, double endDistance ) const = 0 /Factory/;
+%Docstring
+Returns a new curve representing a substring of this curve.
+
+The ``startDistance`` and ``endDistance`` arguments specify the length along the curve
+which the substring should start and end at. If the ``endDistance`` is greater than the
+total length of the curve then any "extra" length will be ignored.
+
+If z or m values are present, the output z and m will be interpolated using
+the existing vertices' z or m values.
+
+.. versionadded:: 3.4
+%End
+
     double straightDistance2d() const;
 %Docstring
 Returns the straight distance of the curve, i.e. the direct/euclidean distance
@@ -200,6 +241,23 @@ straightDistance2d(). Larger numbers indicate a more "sinuous" curve (i.e. more
 If a curve isClosed(), it has infinite sinuosity and will return NaN.
 
 .. versionadded:: 3.2
+%End
+
+    enum Orientation
+    {
+      Clockwise,
+      CounterClockwise,
+    };
+
+    Orientation orientation() const;
+%Docstring
+Returns the curve's orientation, e.g. clockwise or counter-clockwise.
+
+.. warning::
+
+   The result is not predictable for non-closed curves.
+
+.. versionadded:: 3.6
 %End
 
 

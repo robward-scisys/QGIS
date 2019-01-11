@@ -143,18 +143,6 @@ void QgsSingleBandPseudoColorRendererWidget::setMapCanvas( QgsMapCanvas *canvas 
   mColorRampShaderWidget->setExtent( mMinMaxWidget->extent() );
 }
 
-void QgsSingleBandPseudoColorRendererWidget::mLoadFromBandButton_clicked()
-{
-  if ( !mRasterLayer || !mRasterLayer->dataProvider() )
-  {
-    return;
-  }
-
-  int bandIndex = mBandComboBox->currentBand();
-  mColorRampShaderWidget->setRasterBand( bandIndex );
-  emit widgetChanged();
-}
-
 void QgsSingleBandPseudoColorRendererWidget::setFromRenderer( const QgsRasterRenderer *r )
 {
   const QgsSingleBandPseudoColorRenderer *pr = dynamic_cast<const QgsSingleBandPseudoColorRenderer *>( r );
@@ -162,6 +150,7 @@ void QgsSingleBandPseudoColorRendererWidget::setFromRenderer( const QgsRasterRen
   {
     mBandComboBox->setBand( pr->band() );
     mMinMaxWidget->setBands( QList< int >() << pr->band() );
+    mColorRampShaderWidget->setRasterBand( pr->band() );
 
     const QgsRasterShader *rasterShader = pr->shader();
     if ( rasterShader )
@@ -195,7 +184,7 @@ void QgsSingleBandPseudoColorRendererWidget::bandChanged()
 void QgsSingleBandPseudoColorRendererWidget::loadMinMax( int bandNo, double min, double max )
 {
   Q_UNUSED( bandNo );
-  QgsDebugMsg( QString( "theBandNo = %1 min = %2 max = %3" ).arg( bandNo ).arg( min ).arg( max ) );
+  QgsDebugMsg( QStringLiteral( "theBandNo = %1 min = %2 max = %3" ).arg( bandNo ).arg( min ).arg( max ) );
 
   double oldMin = lineEditValue( mMinLineEdit );
   double oldMax = lineEditValue( mMaxLineEdit );

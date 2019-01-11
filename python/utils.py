@@ -30,7 +30,7 @@ QGIS utilities module
 
 from qgis.PyQt.QtCore import QCoreApplication, QLocale, QThread
 from qgis.PyQt.QtWidgets import QPushButton, QApplication
-from qgis.core import Qgis, QgsExpression, QgsMessageLog, qgsfunction, QgsMessageOutput, QgsWkbTypes
+from qgis.core import Qgis, QgsMessageLog, qgsfunction, QgsMessageOutput
 from qgis.gui import QgsMessageBar
 
 import os
@@ -38,10 +38,7 @@ import sys
 import traceback
 import glob
 import os.path
-try:
-    import configparser
-except ImportError:
-    import ConfigParser as configparser
+import configparser
 import warnings
 import codecs
 import time
@@ -331,7 +328,8 @@ def startPlugin(packageName):
 
     errMsg = QCoreApplication.translate("Python", "Couldn't load plugin '{0}'").format(packageName)
 
-    start = time.clock()
+    start = time.process_time()
+
     # create an instance of the plugin
     try:
         plugins[packageName] = package.classFactory(iface)
@@ -353,7 +351,7 @@ def startPlugin(packageName):
 
     # add to active plugins
     active_plugins.append(packageName)
-    end = time.clock()
+    end = time.process_time()
     plugin_times[packageName] = "{0:02f}s".format(end - start)
 
     return True
@@ -696,3 +694,33 @@ if not os.environ.get('QGIS_NO_OVERRIDE_IMPORT'):
         builtins.__import__ = _import
     else:
         __builtin__.__import__ = _import
+
+
+def run_script_from_file(filepath):
+    """
+    Runs a Python script from a given file. Supports loading processing scripts.
+    :param filepath: The .py file to load.
+    """
+    import sys
+    import inspect
+    from qgis.processing import alg
+    try:
+        from qgis.core import QgsApplication, QgsProcessingAlgorithm, QgsProcessingFeatureBasedAlgorithm
+        from processing.gui.AlgorithmDialog import AlgorithmDialog
+        _locals = {}
+        exec(open(filepath.replace("\\\\", "/").encode(sys.getfilesystemencoding())).read(), _locals)
+        alginstance = None
+        try:
+            alginstance = alg.instances.pop().createInstance()
+        except IndexError:
+            for name, attr in _locals.items():
+                if inspect.isclass(attr) and issubclass(attr, (QgsProcessingAlgorithm, QgsProcessingFeatureBasedAlgorithm)) and attr.__name__ not in ("QgsProcessingAlgorithm", "QgsProcessingFeatureBasedAlgorithm"):
+                    alginstance = attr()
+                    break
+        if alginstance:
+            alginstance.setProvider(QgsApplication.processingRegistry().providerById("script"))
+            alginstance.initAlgorithm()
+            dlg = AlgorithmDialog(alginstance)
+            dlg.show()
+    except ImportError:
+        pass

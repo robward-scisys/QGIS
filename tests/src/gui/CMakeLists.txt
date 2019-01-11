@@ -9,6 +9,7 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/tests/core #for render checker class
   ${CMAKE_SOURCE_DIR}/src/analysis/processing
   ${CMAKE_SOURCE_DIR}/src/gui
+  ${CMAKE_SOURCE_DIR}/src/gui/auth
   ${CMAKE_SOURCE_DIR}/src/gui/editorwidgets
   ${CMAKE_SOURCE_DIR}/src/gui/editorwidgets/core
   ${CMAKE_SOURCE_DIR}/src/gui/layout
@@ -32,6 +33,7 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_BINARY_DIR}/src/core
   ${CMAKE_BINARY_DIR}/src/gui
   ${CMAKE_BINARY_DIR}/src/ui
+  ${CMAKE_BINARY_DIR}/src/ui/auth
   ${CMAKE_BINARY_DIR}/src/native
   ${CMAKE_CURRENT_BINARY_DIR}
 )
@@ -119,6 +121,7 @@ ADD_QGIS_TEST(edittooltest testqgsmaptooledit.cpp)
 #ADD_EXECUTABLE(qgis_rendererv2gui ${rendererv2gui_SRCS} ${rendererv2gui_MOC_SRCS})
 
 #ADD_QGIS_TEST(histogramtest testqgsrasterhistogram.cpp)
+ADD_QGIS_TEST(categorizedrendererwidget testqgscategorizedrendererwidget.cpp)
 ADD_QGIS_TEST(doublespinbox testqgsdoublespinbox.cpp)
 ADD_QGIS_TEST(dualviewtest testqgsdualview.cpp)
 ADD_QGIS_TEST(attributeformtest testqgsattributeform.cpp)
@@ -127,6 +130,7 @@ ADD_QGIS_TEST(fieldexpressionwidget testqgsfieldexpressionwidget.cpp)
 ADD_QGIS_TEST(filewidget testqgsfilewidget.cpp)
 ADD_QGIS_TEST(focuswatcher testqgsfocuswatcher.cpp)
 ADD_QGIS_TEST(mapcanvastest testqgsmapcanvas.cpp)
+ADD_QGIS_TEST(messagebartest testqgsmessagebar.cpp)
 ADD_QGIS_TEST(projectionissues testprojectionissues.cpp)
 ADD_QGIS_TEST(qgsguitest testqgsgui.cpp)
 ADD_QGIS_TEST(processingguitest testprocessinggui.cpp)
@@ -146,3 +150,4 @@ ADD_QGIS_TEST(layoutview testqgslayoutview.cpp)
 ADD_QGIS_TEST(valuemapwidgetwrapper testqgsvaluemapwidgetwrapper.cpp)
 ADD_QGIS_TEST(valuerelationwidgetwrapper testqgsvaluerelationwidgetwrapper.cpp)
 ADD_QGIS_TEST(relationreferencewidget testqgsrelationreferencewidget.cpp)
+ADD_QGIS_TEST(featurelistcombobox testqgsfeaturelistcombobox.cpp)

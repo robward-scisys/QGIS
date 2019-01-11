@@ -27,24 +27,18 @@
 #include "qgsmaptoolcapture.h"
 #include "qgsmaptooladvanceddigitizing.h"
 #include "qgsmessagebaritem.h"
-#include "qgspointxy.h"
 #include "qgslinestring.h"
 #include "qgsfocuswatcher.h"
 #include "qgssettings.h"
 #include "qgssnappingutils.h"
 #include "qgsproject.h"
+#include "qgsmapmouseevent.h"
 
 
 QgsAdvancedDigitizingDockWidget::QgsAdvancedDigitizingDockWidget( QgsMapCanvas *canvas, QWidget *parent )
   : QgsDockWidget( parent )
   , mMapCanvas( canvas )
-  , mCurrentMapToolSupportsCad( false )
-  , mCadEnabled( false )
-  , mConstructionMode( false )
   , mCommonAngleConstraint( QgsSettings().value( QStringLiteral( "/Cad/CommonAngle" ), 90 ).toDouble() )
-  , mSnappedToVertex( false )
-  , mSessionActive( false )
-  , mErrorMessage( nullptr )
 {
   setupUi( this );
 
@@ -316,7 +310,7 @@ QgsAdvancedDigitizingDockWidget::CadConstraint *QgsAdvancedDigitizingDockWidget:
 double QgsAdvancedDigitizingDockWidget::parseUserInput( const QString &inputValue, bool &ok ) const
 {
   ok = false;
-  double value = inputValue.toDouble( &ok );
+  double value = qgsPermissiveToDouble( inputValue, ok );
   if ( ok )
   {
     return value;
@@ -562,6 +556,8 @@ bool QgsAdvancedDigitizingDockWidget::applyConstraints( QgsMapMouseEvent *e )
 
   // set the point coordinates in the map event
   e->setMapPoint( point );
+
+  mSnapMatch = context.snappingUtils->snapToMap( point );
 
   // update the point list
   updateCurrentPoint( point );
@@ -1098,7 +1094,7 @@ void QgsAdvancedDigitizingDockWidget::CadConstraint::setValue( double value, boo
 {
   mValue = value;
   if ( updateWidget )
-    mLineEdit->setText( QString::number( value, 'f' ) );
+    mLineEdit->setText( QLocale().toString( value, 'f', 6 ) );
 }
 
 void QgsAdvancedDigitizingDockWidget::CadConstraint::toggleLocked()

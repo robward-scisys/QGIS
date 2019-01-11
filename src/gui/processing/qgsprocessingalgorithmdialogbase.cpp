@@ -33,10 +33,6 @@
 
 ///@cond NOT_STABLE
 
-QgsProcessingAlgorithmDialogFeedback::QgsProcessingAlgorithmDialogFeedback()
-{
-}
-
 void QgsProcessingAlgorithmDialogFeedback::setProgressText( const QString &text )
 {
   emit progressTextChanged( text );
@@ -91,7 +87,7 @@ QgsProcessingAlgorithmDialogBase::QgsProcessingAlgorithmDialogBase( QWidget *par
   handleLayout->addStretch();
   splitterHandle->setLayout( handleLayout );
 
-  QgsGui::instance()->enableAutoGeometryRestore( this );
+  QgsGui::enableAutoGeometryRestore( this );
 
   QgsSettings settings;
   splitter->restoreState( settings.value( QStringLiteral( "/Processing/dialogBaseSplitter" ), QByteArray() ).toByteArray() );
@@ -99,7 +95,7 @@ QgsProcessingAlgorithmDialogBase::QgsProcessingAlgorithmDialogBase( QWidget *par
   splitterChanged( 0, 0 );
 
   connect( mButtonBox, &QDialogButtonBox::rejected, this, &QgsProcessingAlgorithmDialogBase::closeClicked );
-  connect( mButtonBox, &QDialogButtonBox::accepted, this, &QgsProcessingAlgorithmDialogBase::accept );
+  connect( mButtonBox, &QDialogButtonBox::accepted, this, &QgsProcessingAlgorithmDialogBase::runAlgorithm );
 
   // Rename OK button to Run
   mButtonRun = mButtonBox->button( QDialogButtonBox::Ok );
@@ -123,14 +119,20 @@ QgsProcessingAlgorithmDialogBase::QgsProcessingAlgorithmDialogBase( QWidget *par
   connect( QgsApplication::taskManager(), &QgsTaskManager::taskTriggered, this, &QgsProcessingAlgorithmDialogBase::taskTriggered );
 }
 
+QgsProcessingAlgorithmDialogBase::~QgsProcessingAlgorithmDialogBase() = default;
+
 void QgsProcessingAlgorithmDialogBase::setAlgorithm( QgsProcessingAlgorithm *algorithm )
 {
-  mAlgorithm = algorithm;
+  mAlgorithm.reset( algorithm );
   QString title;
-  if ( algorithm->flags() & QgsProcessingAlgorithm::FlagDisplayNameIsLiteral )
-    title = mAlgorithm->displayName();
-  else
+  if ( ( QgsGui::higFlags() & QgsGui::HigDialogTitleIsTitleCase ) && !( algorithm->flags() & QgsProcessingAlgorithm::FlagDisplayNameIsLiteral ) )
+  {
     title = QgsStringUtils::capitalize( mAlgorithm->displayName(), QgsStringUtils::TitleCase );
+  }
+  else
+  {
+    title = mAlgorithm->displayName();
+  }
   setWindowTitle( title );
 
   QString algHelp = formatHelp( algorithm );
@@ -148,13 +150,15 @@ void QgsProcessingAlgorithmDialogBase::setAlgorithm( QgsProcessingAlgorithm *alg
     connect( textShortHelp, &QTextBrowser::anchorClicked, this, &QgsProcessingAlgorithmDialogBase::linkClicked );
   }
 
-  if ( !( algorithm->flags() & QgsProcessingAlgorithm::FlagNoThreading ) )
-    mButtonRun->setText( tr( "Run in Background" ) );
+  if ( algorithm->helpUrl().isEmpty() && algorithm->provider()->helpId().isEmpty() )
+  {
+    mButtonBox->removeButton( mButtonBox->button( QDialogButtonBox::Help ) );
+  }
 }
 
 QgsProcessingAlgorithm *QgsProcessingAlgorithmDialogBase::algorithm()
 {
-  return mAlgorithm;
+  return mAlgorithm.get();
 }
 
 void QgsProcessingAlgorithmDialogBase::setMainWidget( QWidget *widget )
@@ -256,10 +260,6 @@ void QgsProcessingAlgorithmDialogBase::setResults( const QVariantMap &results )
 void QgsProcessingAlgorithmDialogBase::finished( bool, const QVariantMap &, QgsProcessingContext &, QgsProcessingFeedback * )
 {
 
-}
-
-void QgsProcessingAlgorithmDialogBase::accept()
-{
 }
 
 void QgsProcessingAlgorithmDialogBase::openHelp()
@@ -381,7 +381,7 @@ void QgsProcessingAlgorithmDialogBase::pushDebugInfo( const QString &message )
 
 void QgsProcessingAlgorithmDialogBase::pushConsoleInfo( const QString &info )
 {
-  txtLog->append( QStringLiteral( "<code><span style=\"color:blue\">%1</darkgray></code>" ).arg( formatStringForLog( info.toHtmlEscaped() ) ) );
+  txtLog->append( QStringLiteral( "<code style=\"color:#777\">%1</code>" ).arg( formatStringForLog( info.toHtmlEscaped() ) ) );
   scrollToBottomOfLog();
   processEvents();
 }
@@ -391,6 +391,7 @@ QDialog *QgsProcessingAlgorithmDialogBase::createProgressDialog()
   QgsProcessingAlgorithmProgressDialog *dialog = new QgsProcessingAlgorithmProgressDialog( this );
   dialog->setWindowModality( Qt::ApplicationModal );
   dialog->setWindowTitle( windowTitle() );
+  dialog->setGeometry( geometry() ); // match size/position to this dialog
   connect( progressBar, &QProgressBar::valueChanged, dialog->progressBar(), &QProgressBar::setValue );
   connect( dialog->cancelButton(), &QPushButton::clicked, buttonCancel, &QPushButton::click );
   dialog->logTextEdit()->setHtml( txtLog->toHtml() );
@@ -457,6 +458,11 @@ void QgsProcessingAlgorithmDialogBase::closeEvent( QCloseEvent *e )
     // to retrieve results and execution status).
     deleteLater();
   }
+}
+
+void QgsProcessingAlgorithmDialogBase::runAlgorithm()
+{
+
 }
 
 void QgsProcessingAlgorithmDialogBase::setPercentage( double percent )
@@ -582,7 +588,6 @@ QgsProcessingAlgorithmProgressDialog::QgsProcessingAlgorithmProgressDialog( QWid
   : QDialog( parent )
 {
   setupUi( this );
-  QgsGui::enableAutoGeometryRestore( this );
 }
 
 QProgressBar *QgsProcessingAlgorithmProgressDialog::progressBar()

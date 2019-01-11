@@ -20,6 +20,7 @@
 #include "qgslayertreemodel.h"
 #include "qgslayertreeutils.h"
 #include "qgssettings.h"
+#include "qgsziputils.h"
 
 #include <QDomDocument>
 #include <QFileDialog>
@@ -54,7 +55,7 @@ QgsProjectLayerGroupDialog::QgsProjectLayerGroupDialog( QWidget *parent, const Q
   QgsSettings settings;
 
   mProjectFileWidget->setStorageMode( QgsFileWidget::GetFile );
-  mProjectFileWidget->setFilter( tr( "QGIS files" ) + QStringLiteral( " (*.qgs *.QGS)" ) );
+  mProjectFileWidget->setFilter( tr( "QGIS files" ) + QStringLiteral( " (*.qgs *.QGS *.qgz *.QGZ)" ) );
   mProjectFileWidget->setDialogTitle( tr( "Select Project File" ) );
   mProjectFileWidget->setDefaultRoot( settings.value( QStringLiteral( "/qgis/last_embedded_project_path" ), QDir::homePath() ).toString() );
   if ( !projectFile.isEmpty() )
@@ -167,9 +168,40 @@ void QgsProjectLayerGroupDialog::changeProjectFile()
     return;
   }
 
+  std::unique_ptr<QgsProjectArchive> archive;
+
   QDomDocument projectDom;
-  if ( !projectDom.setContent( &projectFile ) )
+  if ( QgsZipUtils::isZipFile( mProjectFileWidget->filePath() ) )
   {
+
+    archive = qgis::make_unique<QgsProjectArchive>();
+
+    // unzip the archive
+    if ( !archive->unzip( mProjectFileWidget->filePath() ) )
+    {
+      return;
+    }
+
+    // test if zip provides a .qgs file
+    if ( archive->projectFile().isEmpty() )
+    {
+      return;
+    }
+
+    projectFile.setFileName( archive->projectFile() );
+    if ( !projectFile.exists() )
+    {
+      return;
+    }
+  }
+  QString errorMessage;
+  int errorLine;
+  if ( !projectDom.setContent( &projectFile, &errorMessage, &errorLine ) )
+  {
+    QgsDebugMsg( QStringLiteral( "Error reading the project file %1 at line %2: %3" )
+                 .arg( projectFile.fileName() )
+                 .arg( errorLine )
+                 .arg( errorMessage ) );
     return;
   }
 

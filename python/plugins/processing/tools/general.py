@@ -127,7 +127,7 @@ def createAlgorithmDialog(algOrName, parameters={}):
     and delete this dialog.
     """
     if isinstance(algOrName, QgsProcessingAlgorithm):
-        alg = algOrName
+        alg = algOrName.create()
     else:
         alg = QgsApplication.processingRegistry().createAlgorithmById(algOrName)
 
@@ -137,7 +137,7 @@ def createAlgorithmDialog(algOrName, parameters={}):
     dlg = alg.createCustomParametersWidget(iface.mainWindow())
 
     if not dlg:
-        dlg = AlgorithmDialog(alg)
+        dlg = AlgorithmDialog(alg, parent=iface.mainWindow())
 
     dlg.setParameters(parameters)
 

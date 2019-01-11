@@ -57,6 +57,7 @@ QgsRenderContext::QgsRenderContext( const QgsRenderContext &rh )
   , mSegmentationToleranceType( rh.mSegmentationToleranceType )
   , mTransformContext( rh.mTransformContext )
   , mPathResolver( rh.mPathResolver )
+  , mTextRenderFormat( rh.mTextRenderFormat )
 #ifdef QGISDEBUG
   , mHasTransformContext( rh.mHasTransformContext )
 #endif
@@ -84,6 +85,7 @@ QgsRenderContext &QgsRenderContext::operator=( const QgsRenderContext &rh )
   mDistanceArea = rh.mDistanceArea;
   mTransformContext = rh.mTransformContext;
   mPathResolver = rh.mPathResolver;
+  mTextRenderFormat = rh.mTextRenderFormat;
 #ifdef QGISDEBUG
   mHasTransformContext = rh.mHasTransformContext;
 #endif
@@ -110,7 +112,7 @@ QgsCoordinateTransformContext QgsRenderContext::transformContext() const
 {
 #ifdef QGISDEBUG
   if ( !mHasTransformContext )
-    qWarning( "No QgsCoordinateTransformContext context set for transform" );
+    QgsDebugMsgLevel( QStringLiteral( "No QgsCoordinateTransformContext context set for transform" ), 4 );
 #endif
   return mTransformContext;
 }
@@ -172,6 +174,7 @@ QgsRenderContext QgsRenderContext::fromMapSettings( const QgsMapSettings &mapSet
   ctx.mDistanceArea.setEllipsoid( mapSettings.ellipsoid() );
   ctx.setTransformContext( mapSettings.transformContext() );
   ctx.setPathResolver( mapSettings.pathResolver() );
+  ctx.setTextRenderFormat( mapSettings.textRenderFormat() );
   //this flag is only for stopping during the current rendering progress,
   //so must be false at every new render operation
   ctx.setRenderingStopped( false );
@@ -273,7 +276,7 @@ double QgsRenderContext::convertToPainterUnits( double size, QgsUnitTypes::Rende
       size = convertMetersToMapUnits( size );
       unit = QgsUnitTypes::RenderMapUnits;
       // Fall through to RenderMapUnits with size in meters converted to size in MapUnits
-      FALLTHROUGH;
+      FALLTHROUGH
     }
     case QgsUnitTypes::RenderMapUnits:
     {
@@ -323,7 +326,7 @@ double QgsRenderContext::convertToMapUnits( double size, QgsUnitTypes::RenderUni
     {
       size = convertMetersToMapUnits( size );
       // Fall through to RenderMapUnits with values of meters converted to MapUnits
-      FALLTHROUGH;
+      FALLTHROUGH
     }
     case QgsUnitTypes::RenderMapUnits:
     {
@@ -446,3 +449,5 @@ double QgsRenderContext::convertMetersToMapUnits( double meters ) const
   }
   return meters;
 }
+
+

@@ -80,13 +80,13 @@ QgsTransformSettingsDialog::QgsTransformSettingsDialog( const QString &raster, c
   connect( cmbTransformType, static_cast<void ( QComboBox::* )( const QString & )>( &QComboBox::currentIndexChanged ), this, &QgsTransformSettingsDialog::cmbTransformType_currentIndexChanged );
   connect( mWorldFileCheckBox, &QCheckBox::stateChanged, this, &QgsTransformSettingsDialog::mWorldFileCheckBox_stateChanged );
 
-  cmbTransformType->addItem( tr( "Linear" ), ( int )QgsGeorefTransform::Linear );
-  cmbTransformType->addItem( tr( "Helmert" ), ( int )QgsGeorefTransform::Helmert );
-  cmbTransformType->addItem( tr( "Polynomial 1" ), ( int )QgsGeorefTransform::PolynomialOrder1 );
-  cmbTransformType->addItem( tr( "Polynomial 2" ), ( int )QgsGeorefTransform::PolynomialOrder2 );
-  cmbTransformType->addItem( tr( "Polynomial 3" ), ( int )QgsGeorefTransform::PolynomialOrder3 );
-  cmbTransformType->addItem( tr( "Thin Plate Spline" ), ( int )QgsGeorefTransform::ThinPlateSpline );
-  cmbTransformType->addItem( tr( "Projective" ), ( int )QgsGeorefTransform::Projective );
+  cmbTransformType->addItem( tr( "Linear" ), static_cast<int>( QgsGeorefTransform::Linear ) );
+  cmbTransformType->addItem( tr( "Helmert" ), static_cast<int>( QgsGeorefTransform::Helmert ) );
+  cmbTransformType->addItem( tr( "Polynomial 1" ), static_cast<int>( QgsGeorefTransform::PolynomialOrder1 ) );
+  cmbTransformType->addItem( tr( "Polynomial 2" ), static_cast<int>( QgsGeorefTransform::PolynomialOrder2 ) );
+  cmbTransformType->addItem( tr( "Polynomial 3" ), static_cast<int>( QgsGeorefTransform::PolynomialOrder3 ) );
+  cmbTransformType->addItem( tr( "Thin Plate Spline" ), static_cast<int>( QgsGeorefTransform::ThinPlateSpline ) );
+  cmbTransformType->addItem( tr( "Projective" ), static_cast<int>( QgsGeorefTransform::Projective ) );
 
   // Populate CompressionComboBox
   mListCompression.append( QStringLiteral( "None" ) );
@@ -121,6 +121,8 @@ QgsTransformSettingsDialog::QgsTransformSettingsDialog( const QString &raster, c
 
   cbxZeroAsTrans->setChecked( settings.value( QStringLiteral( "/Plugin-GeoReferencer/zeroastrans" ), false ).toBool() );
   cbxLoadInQgisWhenDone->setChecked( settings.value( QStringLiteral( "/Plugin-GeoReferencer/loadinqgis" ), false ).toBool() );
+  saveGcpCheckBox->setChecked( settings.value( QStringLiteral( "/Plugin-GeoReferencer/save_gcp_points" ), false ).toBool() );
+
 }
 
 QgsTransformSettingsDialog::~QgsTransformSettingsDialog()
@@ -132,7 +134,7 @@ QgsTransformSettingsDialog::~QgsTransformSettingsDialog()
 void QgsTransformSettingsDialog::getTransformSettings( QgsGeorefTransform::TransformParametrisation &tp,
     QgsImageWarper::ResamplingMethod &rm,
     QString &comprMethod, QString &raster,
-    QgsCoordinateReferenceSystem &proj, QString &pdfMapFile, QString &pdfReportFile, bool &zt, bool &loadInQgis,
+    QgsCoordinateReferenceSystem &proj, QString &pdfMapFile, QString &pdfReportFile, QString &gcpPoints, bool &zt, bool &loadInQgis,
     double &resX, double &resY )
 {
   if ( cmbTransformType->currentIndex() == -1 )
@@ -162,6 +164,10 @@ void QgsTransformSettingsDialog::getTransformSettings( QgsGeorefTransform::Trans
     resX = dsbHorizRes->value();
     resY = dsbVerticalRes->value();
   }
+  if ( saveGcpCheckBox->isChecked() )
+  {
+    gcpPoints = mOutputRaster->filePath();
+  }
 }
 
 void QgsTransformSettingsDialog::resetSettings()
@@ -173,6 +179,7 @@ void QgsTransformSettingsDialog::resetSettings()
   s.setValue( QStringLiteral( "/Plugin-GeoReferencer/targetsrs" ), QString() );
   s.setValue( QStringLiteral( "/Plugin-GeoReferencer/zeroastrans" ), false );
   s.setValue( QStringLiteral( "/Plugin-GeoReferencer/loadinqgis" ), false );
+  s.setValue( QStringLiteral( "/Plugin-GeoReferencer/save_gcp_points" ), false );
   s.setValue( QStringLiteral( "/Plugin-GeoReferencer/user_specified_resolution" ), false );
   s.setValue( QStringLiteral( "/Plugin-GeoReferencer/user_specified_resx" ),  1.0 );
   s.setValue( QStringLiteral( "/Plugin-GeoReferencer/user_specified_resy" ), -1.0 );
@@ -227,6 +234,8 @@ void QgsTransformSettingsDialog::accept()
   settings.setValue( QStringLiteral( "/Plugin-GeoReferencer/user_specified_resx" ), dsbHorizRes->value() );
   settings.setValue( QStringLiteral( "/Plugin-GeoReferencer/user_specified_resy" ), dsbVerticalRes->value() );
   settings.setValue( QStringLiteral( "/Plugin-GeoReferencer/word_file_checkbox" ), mWorldFileCheckBox->isChecked() );
+  settings.setValue( QStringLiteral( "/Plugin-GeoReferencer/save_gcp_points" ), saveGcpCheckBox->isChecked() );
+
 
   QDialog::accept();
 }

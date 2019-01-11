@@ -111,7 +111,7 @@ void QgsMapLayerStyleManagerWidget::currentStyleChanged( const QString &name )
 
 void QgsMapLayerStyleManagerWidget::styleAdded( const QString &name )
 {
-  QgsDebugMsg( "Style added" );
+  QgsDebugMsg( QStringLiteral( "Style added" ) );
   QStandardItem *item = new QStandardItem( name );
   mModel->appendRow( item );
 }
@@ -139,7 +139,7 @@ void QgsMapLayerStyleManagerWidget::styleRenamed( const QString &oldname, const 
 void QgsMapLayerStyleManagerWidget::addStyle()
 {
   bool ok;
-  QString text = QInputDialog::getText( nullptr, tr( "New style" ),
+  QString text = QInputDialog::getText( nullptr, tr( "New Style" ),
                                         tr( "Style name:" ), QLineEdit::Normal,
                                         QStringLiteral( "new style" ), &ok );
   if ( !ok || text.isEmpty() )
@@ -171,7 +171,7 @@ void QgsMapLayerStyleManagerWidget::removeStyle()
   }
   else
   {
-    QgsDebugMsg( "Failed to remove current style" );
+    QgsDebugMsg( QStringLiteral( "Failed to remove current style" ) );
   }
 
 }
@@ -189,15 +189,15 @@ void QgsMapLayerStyleManagerWidget::saveAsDefault()
       askToUser.setText( tr( "Save default style to: " ) );
       askToUser.setIcon( QMessageBox::Question );
       askToUser.addButton( tr( "Cancel" ), QMessageBox::RejectRole );
-      askToUser.addButton( tr( "Local database" ), QMessageBox::NoRole );
-      askToUser.addButton( tr( "Datasource database" ), QMessageBox::YesRole );
+      askToUser.addButton( tr( "Local Database" ), QMessageBox::NoRole );
+      askToUser.addButton( tr( "Datasource Database" ), QMessageBox::YesRole );
 
       switch ( askToUser.exec() )
       {
         case 0:
           return;
         case 2:
-          layer->saveStyleToDatabase( QLatin1String( "" ), QLatin1String( "" ), true, QLatin1String( "" ), errorMsg );
+          layer->saveStyleToDatabase( QString(), QString(), true, QString(), errorMsg );
           if ( errorMsg.isNull() )
           {
             return;
@@ -232,8 +232,8 @@ void QgsMapLayerStyleManagerWidget::loadDefault()
       askToUser.setText( tr( "Load default style from: " ) );
       askToUser.setIcon( QMessageBox::Question );
       askToUser.addButton( tr( "Cancel" ), QMessageBox::RejectRole );
-      askToUser.addButton( tr( "Local database" ), QMessageBox::NoRole );
-      askToUser.addButton( tr( "Datasource database" ), QMessageBox::YesRole );
+      askToUser.addButton( tr( "Local Database" ), QMessageBox::NoRole );
+      askToUser.addButton( tr( "Datasource Database" ), QMessageBox::YesRole );
 
       switch ( askToUser.exec() )
       {

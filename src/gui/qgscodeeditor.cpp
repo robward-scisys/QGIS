@@ -38,6 +38,10 @@ QgsCodeEditor::QgsCodeEditor( QWidget *parent, const QString &title, bool foldin
   }
   setSciWidget();
   setHorizontalScrollBarPolicy( Qt::ScrollBarAsNeeded );
+
+  SendScintilla( SCI_SETADDITIONALSELECTIONTYPING, 1 );
+  SendScintilla( SCI_SETMULTIPASTE, 1 );
+  SendScintilla( SCI_SETVIRTUALSPACEOPTIONS, SCVS_RECTANGULARSELECTION );
 }
 
 // Workaround a bug in QScintilla 2.8.X
@@ -178,8 +182,6 @@ QFont QgsCodeEditor::getMonospaceFont()
   font.setFixedPitch( true );
   font.setPointSize( fontSize );
   font.setStyleHint( QFont::TypeWriter );
-  font.setStretch( QFont::SemiCondensed );
-  font.setLetterSpacing( QFont::PercentageSpacing, 87.0 );
   font.setBold( false );
   return font;
 }

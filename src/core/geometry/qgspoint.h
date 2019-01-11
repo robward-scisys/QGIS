@@ -15,8 +15,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef QGSPOINTV2_H
-#define QGSPOINTV2_H
+#ifndef QGSPOINT_H
+#define QGSPOINT_H
 
 #include "qgis_core.h"
 #include "qgis.h"
@@ -477,6 +477,7 @@ class CORE_EXPORT QgsPoint: public QgsAbstractGeometry
 #ifndef SIP_RUN
 
     void filterVertices( const std::function< bool( const QgsPoint & ) > &filter ) override;
+    void transformVertices( const std::function< QgsPoint( const QgsPoint & ) > &transform ) override;
 
     /**
      * Cast the \a geom to a QgsPoint.
@@ -499,7 +500,7 @@ class CORE_EXPORT QgsPoint: public QgsAbstractGeometry
     SIP_PYOBJECT __repr__();
     % MethodCode
     QString str = QStringLiteral( "<QgsPoint: %1>" ).arg( sipCpp->asWkt() );
-    sipRes = PyUnicode_FromString( str.toUtf8().data() );
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
     % End
 #endif
 
@@ -517,4 +518,4 @@ class CORE_EXPORT QgsPoint: public QgsAbstractGeometry
 
 // clazy:excludeall=qstring-allocations
 
-#endif // QGSPOINTV2_H
+#endif // QGSPOINT_H

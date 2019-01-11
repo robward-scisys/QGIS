@@ -26,6 +26,12 @@
 
 #define CLEAR_ICON_SIZE 16
 
+// This is required because private implementation of
+// QAbstractSpinBoxPrivate checks for specialText emptiness
+// and skips specialText handling if it's empty
+QString QgsDoubleSpinBox::SPECIAL_TEXT_WHEN_EMPTY = QChar( 0x2063 );
+
+
 QgsDoubleSpinBox::QgsDoubleSpinBox( QWidget *parent )
   : QDoubleSpinBox( parent )
 {
@@ -56,6 +62,12 @@ void QgsDoubleSpinBox::setExpressionsEnabled( const bool enabled )
 void QgsDoubleSpinBox::changeEvent( QEvent *event )
 {
   QDoubleSpinBox::changeEvent( event );
+
+  if ( event->type() == QEvent::FontChange )
+  {
+    lineEdit()->setFont( font() );
+  }
+
   mLineEdit->setShowClearButton( shouldShowClearForValue( value() ) );
 }
 
@@ -95,6 +107,8 @@ void QgsDoubleSpinBox::changed( double value )
 void QgsDoubleSpinBox::clear()
 {
   setValue( clearValue() );
+  if ( mLineEdit->isNull() )
+    mLineEdit->clear();
 }
 
 void QgsDoubleSpinBox::setClearValue( double customValue, const QString &specialValueText )
@@ -140,6 +154,20 @@ void QgsDoubleSpinBox::setLineEditAlignment( Qt::Alignment alignment )
   mLineEdit->setAlignment( alignment );
 }
 
+void QgsDoubleSpinBox::setSpecialValueText( const QString &txt )
+{
+  if ( txt.isEmpty() )
+  {
+    QDoubleSpinBox::setSpecialValueText( SPECIAL_TEXT_WHEN_EMPTY );
+    mLineEdit->setNullValue( SPECIAL_TEXT_WHEN_EMPTY );
+  }
+  else
+  {
+    QDoubleSpinBox::setSpecialValueText( txt );
+    mLineEdit->setNullValue( SPECIAL_TEXT_WHEN_EMPTY );
+  }
+}
+
 QString QgsDoubleSpinBox::stripped( const QString &originalText ) const
 {
   //adapted from QAbstractSpinBoxPrivate::stripped
@@ -147,6 +175,9 @@ QString QgsDoubleSpinBox::stripped( const QString &originalText ) const
   QString text = originalText;
   if ( specialValueText().isEmpty() || text != specialValueText() )
   {
+    // Strip SPECIAL_TEXT_WHEN_EMPTY
+    if ( text.contains( SPECIAL_TEXT_WHEN_EMPTY ) )
+      text = text.replace( SPECIAL_TEXT_WHEN_EMPTY, QString() );
     int from = 0;
     int size = text.size();
     bool changed = false;

@@ -45,6 +45,7 @@ class CORE_EXPORT QgsLayoutRenderContext : public QObject
       FlagUseAdvancedEffects = 1 << 4, //!< Enable advanced effects such as blend modes.
       FlagForceVectorOutput = 1 << 5, //!< Force output in vector format where possible, even if items require rasterization to keep their correct appearance.
       FlagHideCoverageLayer = 1 << 6, //!< Hide coverage layer in outputs
+      FlagDrawSelection = 1 << 7, //!< Draw selection
     };
     Q_DECLARE_FLAGS( Flags, Flag )
 
@@ -103,6 +104,20 @@ class CORE_EXPORT QgsLayoutRenderContext : public QObject
      * \see setDpi()
      */
     double dpi() const;
+
+    /**
+     * Sets color that is used for drawing of selected vector features
+     * \see selectionColor()
+     * \since QGIS 3.4
+     */
+    void setSelectionColor( const QColor &color ) { mSelectionColor = color; }
+
+    /**
+     * Gets color that is used for drawing of selected vector features
+     * \see setSelectionColor()
+     * \since QGIS 3.4
+     */
+    QColor selectionColor() const { return mSelectionColor; }
 
     /**
      * Returns the layout measurement converter to be used in the layout. This converter is used
@@ -185,6 +200,28 @@ class CORE_EXPORT QgsLayoutRenderContext : public QObject
      */
     int currentExportLayer() const { return mCurrentExportLayer; }
 
+    /**
+     * Returns the text render format, which dictates how text is rendered (e.g. as paths or real text objects).
+     *
+     * \see setTextRenderFormat()
+     * \since QGIS 3.4.3
+     */
+    QgsRenderContext::TextRenderFormat textRenderFormat() const
+    {
+      return mTextRenderFormat;
+    }
+
+    /**
+     * Sets the text render \a format, which dictates how text is rendered (e.g. as paths or real text objects).
+     *
+     * \see textRenderFormat()
+     * \since QGIS 3.4.3
+     */
+    void setTextRenderFormat( QgsRenderContext::TextRenderFormat format )
+    {
+      mTextRenderFormat = format;
+    }
+
   signals:
 
     /**
@@ -206,12 +243,16 @@ class CORE_EXPORT QgsLayoutRenderContext : public QObject
 
     int mCurrentExportLayer = -1;
 
+    QColor mSelectionColor = Qt::yellow;
+
     QgsLayoutMeasurementConverter mMeasurementConverter;
 
     bool mIsPreviewRender = true;
     bool mGridVisible = false;
     bool mBoundingBoxesVisible = true;
     bool mPagesVisible = true;
+
+    QgsRenderContext::TextRenderFormat mTextRenderFormat = QgsRenderContext::TextFormatAlwaysOutlines;
 
     friend class QgsLayoutExporter;
     friend class TestQgsLayout;

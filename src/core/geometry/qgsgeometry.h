@@ -16,6 +16,8 @@ email                : morb at ozemail dot com dot au
 #ifndef QGSGEOMETRY_H
 #define QGSGEOMETRY_H
 
+#include <functional>
+
 #include <QDomDocument>
 #include <QSet>
 #include <QString>
@@ -29,9 +31,9 @@ email                : morb at ozemail dot com dot au
 #include "qgis.h"
 
 #include "qgsabstractgeometry.h"
-#include "qgsfeature.h"
 #include "qgspointxy.h"
 #include "qgspoint.h"
+#include "qgsfeatureid.h"
 
 
 class QgsGeometryEngine;
@@ -98,7 +100,7 @@ struct QgsGeometryPrivate;
  * container class can also be stored inside a QVariant object.
  *
  * The actual geometry representation is stored as a QgsAbstractGeometry within the container, and
- * can be accessed via the geometry() method or set using the setGeometry() method.
+ * can be accessed via the get() method or set using the set() method.
  */
 
 class CORE_EXPORT QgsGeometry
@@ -205,7 +207,7 @@ class CORE_EXPORT QgsGeometry
      * \see isEmpty()
      * \since QGIS 2.10
      */
-    bool isNull() const;
+    Q_INVOKABLE bool isNull() const;
 
     //! Creates a new geometry from a WKT string
     static QgsGeometry fromWkt( const QString &wkt );
@@ -375,6 +377,9 @@ class CORE_EXPORT QgsGeometry
 
 #ifndef SIP_RUN
 
+    // TODO QGIS 4: consider renaming vertices_begin, vertices_end, parts_begin, parts_end, etc
+    // to camelCase
+
     /**
      * Returns STL-style iterator pointing to the first vertex of the geometry
      * \since QGIS 3.0
@@ -389,10 +394,142 @@ class CORE_EXPORT QgsGeometry
 #endif
 
     /**
-     * Returns Java-style iterator for traversal of vertices of the geometry
+     * Returns a read-only, Java-style iterator for traversal of vertices of all the geometry, including all geometry parts and rings.
+     *
+     * \warning The iterator returns a copy of individual vertices, and accordingly geometries cannot be
+     * modified using the iterator. See transformVertices() for a safe method to modify vertices "in-place".
+     *
+     * * Example:
+     * \code{.py}
+     *   # print the x and y coordinate for each vertex in a LineString
+     *   geometry = QgsGeometry.fromWkt( 'LineString( 0 0, 1 1, 2 2)' )
+     *   for v in geometry.vertices():
+     *       print(v.x(), v.y())
+     *
+     *   # vertex iteration includes all parts and rings
+     *   geometry = QgsGeometry.fromWkt( 'MultiPolygon((( 0 0, 0 10, 10 10, 10 0, 0 0 ),( 5 5, 5 6, 6 6, 6 5, 5 5)),((20 2, 22 2, 22 4, 20 4, 20 2)))' )
+     *   for v in geometry.vertices():
+     *       print(v.x(), v.y())
+     * \endcode
+     *
+     * \see parts()
      * \since QGIS 3.0
      */
     QgsVertexIterator vertices() const;
+
+#ifndef SIP_RUN
+
+    /**
+     * Returns STL-style iterator pointing to the first part of the geometry.
+     *
+     * This method forces a detach. Use const_parts_begin() to avoid the detach
+     * if the parts are not going to be modified.
+     *
+     * \since QGIS 3.6
+     */
+    QgsAbstractGeometry::part_iterator parts_begin();
+
+    /**
+     * Returns STL-style iterator pointing to the imaginary part after the last part of the geometry.
+     *
+     * This method forces a detach. Use const_parts_begin() to avoid the detach
+     * if the parts are not going to be modified.
+     *
+     * \since QGIS 3.6
+     */
+    QgsAbstractGeometry::part_iterator parts_end();
+
+    /**
+     * Returns STL-style const iterator pointing to the first part of the geometry.
+     *
+     * This method avoids a detach and is more efficient then parts_begin() for read
+     * only iteration.
+     *
+     * \since QGIS 3.6
+     */
+    QgsAbstractGeometry::const_part_iterator const_parts_begin() const;
+
+    /**
+     * Returns STL-style iterator pointing to the imaginary part after the last part of the geometry.
+     *
+     * This method avoids a detach and is more efficient then parts_end() for read
+     * only iteration.
+     *
+     * \since QGIS 3.6
+     */
+    QgsAbstractGeometry::const_part_iterator const_parts_end() const;
+#endif
+
+    /**
+     * Returns Java-style iterator for traversal of parts of the geometry. This iterator
+     * can safely be used to modify parts of the geometry.
+     *
+     * This method forces a detach. Use constParts() to avoid the detach
+     * if the parts are not going to be modified.
+     *
+     * * Example:
+     * \code{.py}
+     *   # print the WKT representation of each part in a multi-point geometry
+     *   geometry = QgsGeometry.fromWkt( 'MultiPoint( 0 0, 1 1, 2 2)' )
+     *   for part in geometry.parts():
+     *       print(part.asWkt())
+     *
+     *   # single part geometries only have one part - this loop will iterate once only
+     *   geometry = QgsGeometry.fromWkt( 'LineString( 0 0, 10 10 )' )
+     *   for part in geometry.parts():
+     *       print(part.asWkt())
+     *
+     *   # parts can be modified during the iteration
+     *   geometry = QgsGeometry.fromWkt( 'MultiPoint( 0 0, 1 1, 2 2)' )
+     *   for part in geometry.parts():
+     *       part.transform(ct)
+     *
+     *   # part iteration can also be combined with vertex iteration
+     *   geometry = QgsGeometry.fromWkt( 'MultiPolygon((( 0 0, 0 10, 10 10, 10 0, 0 0 ),( 5 5, 5 6, 6 6, 6 5, 5 5)),((20 2, 22 2, 22 4, 20 4, 20 2)))' )
+     *   for part in geometry.parts():
+     *       for v in part.vertices():
+     *           print(v.x(), v.y())
+     *
+     * \endcode
+     *
+     * \see constParts()
+     * \see vertices()
+     * \since QGIS 3.6
+     */
+    QgsGeometryPartIterator parts();
+
+    /**
+     * Returns Java-style iterator for traversal of parts of the geometry. This iterator
+     * returns read-only references to parts and cannot be used to modify the parts.
+     *
+     * Unlike parts(), this method does not force a detach and is more efficient if read-only
+     * iteration only is required.
+     *
+     * * Example:
+     * \code{.py}
+     *   # print the WKT representation of each part in a multi-point geometry
+     *   geometry = QgsGeometry.fromWkt( 'MultiPoint( 0 0, 1 1, 2 2)' )
+     *   for part in geometry.parts():
+     *       print(part.asWkt())
+     *
+     *   # single part geometries only have one part - this loop will iterate once only
+     *   geometry = QgsGeometry.fromWkt( 'LineString( 0 0, 10 10 )' )
+     *   for part in geometry.parts():
+     *       print(part.asWkt())
+     *
+     *   # part iteration can also be combined with vertex iteration
+     *   geometry = QgsGeometry.fromWkt( 'MultiPolygon((( 0 0, 0 10, 10 10, 10 0, 0 0 ),( 5 5, 5 6, 6 6, 6 5, 5 5)),((20 2, 22 2, 22 4, 20 4, 20 2)))' )
+     *   for part in geometry.parts():
+     *       for v in part.vertices():
+     *           print(v.x(), v.y())
+     *
+     * \endcode
+     *
+     * \see parts()
+     * \see vertices()
+     * \since QGIS 3.6
+     */
+    QgsGeometryConstPartIterator constParts() const;
 
     /**
      * Returns the Hausdorff distance between this geometry and \a geom. This is basically a measure of how similar or dissimilar 2 geometries are.
@@ -739,6 +876,7 @@ class CORE_EXPORT QgsGeometry
      * \param center Center of the minimal enclosing circle returneds
      * \param radius Radius of the minimal enclosing circle returned
      * \param segments Number of segments used to segment geometry. \see QgsEllipse::toPolygon()
+     * \returns the minimal enclosing circle as a QGIS geometry
      * \since QGIS 3.0
      */
     QgsGeometry minimalEnclosingCircle( QgsPointXY &center SIP_OUT, double &radius SIP_OUT, unsigned int segments = 36 ) const;
@@ -1134,12 +1272,16 @@ class CORE_EXPORT QgsGeometry
     QgsGeometry subdivide( int maxNodes = 256 ) const;
 
     /**
-     * Returns interpolated point on line at distance.
+     * Returns an interpolated point on the geometry at the specified \a distance.
+     *
+     * If the original geometry is a polygon type, the boundary of the polygon
+     * will be used during interpolation. If the original geometry is a point
+     * type, a null geometry will be returned.
+     *
+     * If z or m values are present, the output z and m will be interpolated using
+     * the existing vertices' z or m values.
      *
      * If the input is a NULL geometry, the output will also be a NULL geometry.
-     *
-     * If an error was encountered while creating the result, more information can be retrieved
-     * by calling `error()` on the returned geometry.
      *
      * \see lineLocatePoint()
      * \since QGIS 2.0
@@ -1251,8 +1393,17 @@ class CORE_EXPORT QgsGeometry
 #ifdef SIP_RUN
     SIP_PYOBJECT __repr__();
     % MethodCode
-    QString str = QStringLiteral( "<QgsGeometry: %1>" ).arg( sipCpp->asWkt() );
-    sipRes = PyUnicode_FromString( str.toUtf8().data() );
+    QString str;
+    if ( sipCpp->isNull() )
+      str = QStringLiteral( "<QgsGeometry: null>" );
+    else
+    {
+      QString wkt = sipCpp->asWkt();
+      if ( wkt.length() > 1000 )
+        wkt = wkt.left( 1000 ) + QStringLiteral( "..." );
+      str = QStringLiteral( "<QgsGeometry: %1>" ).arg( wkt );
+    }
+    sipRes = PyUnicode_FromString( str.toUtf8().constData() );
     % End
 #endif
 
@@ -1272,23 +1423,134 @@ class CORE_EXPORT QgsGeometry
 
     /* Accessor functions for getting geometry data */
 
+#ifndef SIP_RUN
+
     /**
-     * Returns contents of the geometry as a point
-     * if wkbType is WKBPoint, otherwise returns [0,0]
+     * Returns the contents of the geometry as a 2-dimensional point.
+     *
+     * Any z or m values present in the geometry will be discarded.
+     *
+     * \warning If the geometry is not a single-point type, a QgsPoint( 0, 0 ) will be returned.
      */
     QgsPointXY asPoint() const;
+#else
 
     /**
-     * Returns contents of the geometry as a polyline
-     * if wkbType is WKBLineString, otherwise an empty list
+     * Returns the contents of the geometry as a 2-dimensional point.
+     *
+     * Any z or m values present in the geometry will be discarded.
+     *
+     * This method works only with single-point geometry types. If the geometry
+     * is not a single-point type, a TypeError will be raised. If the geometry
+     * is null, a ValueError will be raised.
+     */
+    SIP_PYOBJECT asPoint() const SIP_TYPEHINT( QgsPointXY );
+    % MethodCode
+    const QgsWkbTypes::Type type = sipCpp->wkbType();
+    if ( sipCpp->isNull() )
+    {
+      PyErr_SetString( PyExc_ValueError, QStringLiteral( "Null geometry cannot be converted to a point." ).toUtf8().constData() );
+      sipIsErr = 1;
+    }
+    else if ( QgsWkbTypes::flatType( type ) != QgsWkbTypes::Point )
+    {
+      PyErr_SetString( PyExc_TypeError, QStringLiteral( "%1 geometry cannot be converted to a point. Only Point types are permitted." ).arg( QgsWkbTypes::displayString( type ) ).toUtf8().constData() );
+      sipIsErr = 1;
+    }
+    else
+    {
+      sipRes = sipConvertFromNewType( new QgsPointXY( sipCpp->asPoint() ), sipType_QgsPointXY, Py_None );
+    }
+    % End
+#endif
+
+#ifndef SIP_RUN
+
+    /**
+     * Returns the contents of the geometry as a polyline.
+     *
+     * Any z or m values present in the geometry will be discarded. If the geometry is a curved line type
+     * (such as a CircularString), it will be automatically segmentized.
+     *
+     * \warning If the geometry is not a single-line (or single-curve) type, an empty list will be returned.
      */
     QgsPolylineXY asPolyline() const;
+#else
 
     /**
-     * Returns contents of the geometry as a polygon
-     * if wkbType is WKBPolygon, otherwise an empty list
+     * Returns the contents of the geometry as a polyline.
+     *
+     * Any z or m values present in the geometry will be discarded. If the geometry is a curved line type
+     * (such as a CircularString), it will be automatically segmentized.
+     *
+     * This method works only with single-line (or single-curve) geometry types. If the geometry
+     * is not a single-line type, a TypeError will be raised. If the geometry is null, a ValueError
+     * will be raised.
+     */
+    SIP_PYOBJECT asPolyline() const SIP_TYPEHINT( QgsPolylineXY );
+    % MethodCode
+    const QgsWkbTypes::Type type = sipCpp->wkbType();
+    if ( sipCpp->isNull() )
+    {
+      PyErr_SetString( PyExc_ValueError, QStringLiteral( "Null geometry cannot be converted to a polyline." ).toUtf8().constData() );
+      sipIsErr = 1;
+    }
+    else if ( QgsWkbTypes::geometryType( type ) != QgsWkbTypes::LineGeometry || QgsWkbTypes::isMultiType( type ) )
+    {
+      PyErr_SetString( PyExc_TypeError, QStringLiteral( "%1 geometry cannot be converted to a polyline. Only single line or curve types are permitted." ).arg( QgsWkbTypes::displayString( type ) ).toUtf8().constData() );
+      sipIsErr = 1;
+    }
+    else
+    {
+      const sipMappedType *qvector_type = sipFindMappedType( "QVector< QgsPointXY >" );
+      sipRes = sipConvertFromNewType( new QgsPolylineXY( sipCpp->asPolyline() ), qvector_type, Py_None );
+    }
+    % End
+#endif
+
+#ifndef SIP_RUN
+
+    /**
+     * Returns the contents of the geometry as a polygon.
+     *
+     * Any z or m values present in the geometry will be discarded. If the geometry is a curved polygon type
+     * (such as a CurvePolygon), it will be automatically segmentized.
+     *
+     * \warning If the geometry is not a single-polygon (or single-curve polygon) type, an empty list will be returned.
      */
     QgsPolygonXY asPolygon() const;
+#else
+
+    /**
+     * Returns the contents of the geometry as a polygon.
+     *
+     * Any z or m values present in the geometry will be discarded. If the geometry is a curved polygon type
+     * (such as a CurvePolygon), it will be automatically segmentized.
+     *
+     * This method works only with single-polygon (or single-curve polygon) geometry types. If the geometry
+     * is not a single-polygon type, a TypeError will be raised. If the geometry is null, a ValueError
+     * will be raised.
+     */
+    SIP_PYOBJECT asPolygon() const SIP_TYPEHINT( QgsPolygonXY );
+    % MethodCode
+    const QgsWkbTypes::Type type = sipCpp->wkbType();
+    if ( sipCpp->isNull() )
+    {
+      PyErr_SetString( PyExc_ValueError, QStringLiteral( "Null geometry cannot be converted to a polygon." ).toUtf8().constData() );
+      sipIsErr = 1;
+    }
+    else if ( QgsWkbTypes::geometryType( type ) != QgsWkbTypes::PolygonGeometry || QgsWkbTypes::isMultiType( type ) )
+    {
+      PyErr_SetString( PyExc_TypeError, QStringLiteral( "%1 geometry cannot be converted to a polygon. Only single polygon or curve polygon types are permitted." ).arg( QgsWkbTypes::displayString( type ) ).toUtf8().constData() );
+      sipIsErr = 1;
+    }
+    else
+    {
+      const sipMappedType *qvector_type = sipFindMappedType( "QVector<QVector<QgsPointXY>>" );
+      sipRes = sipConvertFromNewType( new QgsPolygonXY( sipCpp->asPolygon() ), qvector_type, Py_None );
+    }
+    % End
+#endif
 
     /**
      * Returns contents of the geometry as a multi point
@@ -1378,12 +1640,12 @@ class CORE_EXPORT QgsGeometry
 
     /**
      * Modifies geometry to avoid intersections with the layers specified in project properties
-     * \returns 0 in case of success,
-     *         1 if geometry is not of polygon type,
-     *         2 if avoid intersection would change the geometry type,
-     *         3 other error during intersection removal
      * \param avoidIntersectionsLayers list of layers to check for intersections
      * \param ignoreFeatures possibility to give a list of features where intersections should be ignored (not available in Python bindings)
+     * \returns 0 in case of success,
+     *          1 if geometry is not of polygon type,
+     *          2 if avoid intersection would change the geometry type,
+     *          3 other error during intersection removal
      * \since QGIS 1.5
      */
     int avoidIntersections( const QList<QgsVectorLayer *> &avoidIntersectionsLayers,
@@ -1410,31 +1672,60 @@ class CORE_EXPORT QgsGeometry
     QgsGeometry makeValid() const;
 
     /**
+     * Forces geometries to respect the Right-Hand-Rule, in which the area that is bounded by a polygon
+     * is to the right of the boundary. In particular, the exterior ring is oriented in a clockwise direction
+     * and the interior rings in a counter-clockwise direction.
+     *
+     * \since QGIS 3.6
+     */
+    QgsGeometry forceRHR() const;
+
+    /**
      * \ingroup core
      */
     class CORE_EXPORT Error
     {
-        QString message;
-        QgsPointXY location;
-        bool hasLocation = false;
-
       public:
         Error()
-          : message( QStringLiteral( "none" ) )
+          : mMessage( QStringLiteral( "none" ) )
         {}
 
         explicit Error( const QString &m )
-          : message( m )
+          : mMessage( m )
         {}
 
         Error( const QString &m, const QgsPointXY &p )
-          : message( m )
-          , location( p )
-          , hasLocation( true ) {}
+          : mMessage( m )
+          , mLocation( p )
+          , mHasLocation( true ) {}
 
-        QString what() { return message; }
-        QgsPointXY where() { return location; }
-        bool hasWhere() { return hasLocation; }
+        /**
+         * A human readable error message containing details about the error.
+         */
+        QString what() const;
+
+        /**
+         * The coordinates at which the error is located and should be visualized.
+         */
+        QgsPointXY where() const;
+
+        /**
+         * True if the location available from \see where is valid.
+         */
+        bool hasWhere() const;
+
+#ifdef SIP_RUN
+        SIP_PYOBJECT __repr__();
+        % MethodCode
+        QString str = QStringLiteral( "<QgsGeometry.Error: %1>" ).arg( sipCpp->what() );
+        sipRes = PyUnicode_FromString( str.toUtf8().data() );
+        % End
+#endif
+
+      private:
+        QString mMessage;
+        QgsPointXY mLocation;
+        bool mHasLocation = false;
     };
 
     /**
@@ -1547,6 +1838,22 @@ class CORE_EXPORT QgsGeometry
      * \since QGIS 3.2
      */
     void filterVertices( const std::function< bool( const QgsPoint & ) > &filter ) SIP_SKIP;
+
+    /**
+     * Transforms the vertices from the geometry in place, applying the \a transform function
+     * to every vertex.
+     *
+     * Depending on the \a transform used, this may result in an invalid geometry.
+     *
+     * Transform functions are not permitted to alter the dimensionality of vertices. If
+     * a transform which adds (or removes) z/m values is desired, first call the corresponding
+     * addZValue() or addMValue() function to change the geometry's dimensionality and then
+     * transform.
+     *
+     * \note Not available in Python bindings
+     * \since QGIS 3.4
+     */
+    void transformVertices( const std::function< QgsPoint( const QgsPoint & ) > &transform ) SIP_SKIP;
 
     /**
      * Construct geometry from a QPointF
@@ -1780,13 +2087,6 @@ class CORE_EXPORT QgsGeometry
     {
       return QVariant::fromValue( *this );
     }
-
-    /**
-     * Returns true if the geometry is non empty (ie, isNull() returns false),
-     * or false if it is an empty, uninitialized geometry (ie, isNull() returns true).
-     * \since QGIS 3.0
-     */
-    operator bool() const;
 
   private:
 

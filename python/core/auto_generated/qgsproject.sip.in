@@ -13,7 +13,7 @@
 
 
 
-class QgsProject : QObject, QgsExpressionContextGenerator
+class QgsProject : QObject, QgsExpressionContextGenerator, QgsProjectTranslator
 {
 %Docstring
 Reads and writes project states.
@@ -133,6 +133,14 @@ Returns last modified time of the project file as returned by the file system (o
     QString absoluteFilePath() const;
 %Docstring
 Returns full absolute path to the project file if the project is stored in a file system - derived from fileName().
+Returns empty string when the project is stored in a project storage (there is no concept of paths for custom project storages).
+
+.. versionadded:: 3.2
+%End
+
+    QString absolutePath() const;
+%Docstring
+Returns full absolute path to the project folder if the project is stored in a file system - derived from fileName().
 Returns empty string when the project is stored in a project storage (there is no concept of paths for custom project storages).
 
 .. versionadded:: 3.2
@@ -565,19 +573,25 @@ Returns pointer to the project's annotation manager.
 %End
 
 
-    void setNonIdentifiableLayers( const QList<QgsMapLayer *> &layers );
+ void setNonIdentifiableLayers( const QList<QgsMapLayer *> &layers );
 %Docstring
 Set a list of layers which should not be taken into account on map identification
+
+.. deprecated:: since QGIS 3.4 use QgsMapLayer.setFlags() instead
 %End
 
-    void setNonIdentifiableLayers( const QStringList &layerIds );
+ void setNonIdentifiableLayers( const QStringList &layerIds );
 %Docstring
 Set a list of layers which should not be taken into account on map identification
+
+.. deprecated:: since QGIS 3.4 use QgsMapLayer.setFlags() instead
 %End
 
-    QStringList nonIdentifiableLayers() const;
+ QStringList nonIdentifiableLayers() const;
 %Docstring
 Gets the list of layers which currently should not be taken into account on map identification
+
+.. deprecated:: since QGIS 3.4 use QgsMapLayer.setFlags() instead
 %End
 
     bool autoTransaction() const;
@@ -688,6 +702,11 @@ Returns a pointer to the project's internal layer store.
 Returns the number of registered layers.
 %End
 
+    int validCount() const;
+%Docstring
+Returns the number of registered valid layers.
+%End
+
     QgsMapLayer *mapLayer( const QString &layerId ) const;
 %Docstring
 Retrieve a pointer to a registered layer by layer ID.
@@ -700,6 +719,7 @@ Retrieve a pointer to a registered layer by layer ID.
 
 .. seealso:: :py:func:`mapLayers`
 %End
+
 
     QList<QgsMapLayer *> mapLayersByName( const QString &layerName ) const;
 %Docstring
@@ -714,9 +734,11 @@ Retrieve a list of matching registered layers by layer name.
 .. seealso:: :py:func:`mapLayers`
 %End
 
-    QMap<QString, QgsMapLayer *> mapLayers() const;
+    QMap<QString, QgsMapLayer *> mapLayers( const bool validOnly = false ) const;
 %Docstring
 Returns a map of all registered layers by layer ID.
+
+:param validOnly: if set only valid layers will be returned
 
 .. seealso:: :py:func:`mapLayer`
 
@@ -744,12 +766,9 @@ The legendLayersAdded() signal is emitted only if addToLegend is true.
 :param addToLegend: If true (by default), the layers will be added to the
                     legend and to the main canvas. If you have a private
                     layer you can set this parameter to false to hide it.
-:param takeOwnership: Ownership will be transferred to the layer registry.
-                      If you specify false here you have take care of deleting
-                      the layers yourself. Not available in Python.
 
 :return: a list of the map layers that were added
-         successfully. If a layer is invalid, or already exists in the registry,
+         successfully. If a layer or already exists in the registry,
          it will not be part of the returned QList.
 
 
@@ -782,9 +801,6 @@ addMapLayers() instead.
 :param addToLegend: If true (by default), the layer will be added to the
                     legend and to the main canvas. If you have a private
                     layer you can set this parameter to false to hide it.
-:param takeOwnership: Ownership will be transferred to the layer registry.
-                      If you specify false here you have take care of deleting
-                      the layer yourself. Not available in Python.
 
 :return: None if unable to add layer, otherwise pointer to newly added layer
 
@@ -965,24 +981,50 @@ Sets the project's ``metadata`` store.
 .. versionadded:: 3.2
 %End
 
-    QSet<QgsMapLayer *> requiredLayers() const;
+ QSet<QgsMapLayer *> requiredLayers() const;
 %Docstring
 Returns a set of map layers that are required in the project and therefore they should not get
 removed from the project. The set of layers may be configured by users in project properties.
 and it is mainly a hint for the user interface to protect users from removing layers that important
 in the project. The removeMapLayer(), removeMapLayers() calls do not block removal of layers listed here.
 
+.. deprecated:: since QGIS 3.4 use QgsMapLayer.flags() instead
+
 .. versionadded:: 3.2
 %End
 
-    void setRequiredLayers( const QSet<QgsMapLayer *> &layers );
+ void setRequiredLayers( const QSet<QgsMapLayer *> &layers );
 %Docstring
 Configures a set of map layers that are required in the project and therefore they should not get
 removed from the project. The set of layers may be configured by users in project properties.
 and it is mainly a hint for the user interface to protect users from removing layers that important
 in the project. The removeMapLayer(), removeMapLayers() calls do not block removal of layers listed here.
 
+.. deprecated:: since QGIS 3.4 use QgsMapLayer.setFlags() instead
+
 .. versionadded:: 3.2
+%End
+
+    void generateTsFile( const QString &locale );
+%Docstring
+Triggers the collection strings of .qgs to be included in ts file and calls writeTsFile()
+
+.. versionadded:: 3.4
+%End
+
+    virtual QString translate( const QString &context, const QString &sourceText, const char *disambiguation = 0, int n = -1 ) const;
+
+%Docstring
+Translates the project with QTranslator and qm file
+
+:return: the result string (in case there is no QTranslator loaded the sourceText)
+
+:param context: describing layer etc.
+:param sourceText: is the identifier of this text
+:param disambiguation: it's the disambiguation
+:param n: if -1 uses the appropriate form
+
+.. versionadded:: 3.4
 %End
 
   signals:
@@ -1000,6 +1042,11 @@ just before a new project is read).
     void readProject( const QDomDocument & );
 %Docstring
 Emitted when a project is being read.
+%End
+
+    void readProjectWithContext( const QDomDocument &, QgsReadWriteContext &context );
+%Docstring
+Emitted when a project is being read. And passing the /a context
 %End
 
     void writeProject( QDomDocument & );
@@ -1060,9 +1107,11 @@ Emitted when loading layers has produced some messages
 .. versionadded:: 3.2
 %End
 
-    void nonIdentifiableLayersChanged( QStringList nonIdentifiableLayers );
+ void nonIdentifiableLayersChanged( QStringList nonIdentifiableLayers );
 %Docstring
 Emitted when the list of layer which are excluded from map identification changes
+
+.. deprecated:: since QGIS 3.4
 %End
 
     void fileNameChanged();
@@ -1335,6 +1384,26 @@ home path will be automatically determined from the project's file path.
 .. seealso:: :py:func:`homePathChanged`
 
 .. versionadded:: 3.2
+%End
+
+    void registerTranslatableContainers( QgsTranslationContext *translationContext, QgsAttributeEditorContainer *parent, const QString &layerId );
+%Docstring
+Registers the containers that require translation into the translationContext.
+This is a recursive function to get all the child containers.
+
+:param translationContext: where the objects will be registered
+:param parent: parent-container containing list of children
+:param layerId: to store under the correct context
+
+.. versionadded:: 3.4
+%End
+
+    void registerTranslatableObjects( QgsTranslationContext *translationContext );
+%Docstring
+Registers the objects that require translation into the ``translationContext``.
+So there can be created a ts file with these values.
+
+.. versionadded:: 3.4
 %End
 
 };

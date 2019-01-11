@@ -15,6 +15,8 @@
  *                                                                         *
  ***************************************************************************/
 
+#include <QToolButton>
+#include <QClipboard>
 
 #include "qgsinbuiltlocatorfilters.h"
 #include "qgsproject.h"
@@ -25,8 +27,9 @@
 #include "qgsmaplayermodel.h"
 #include "qgslayoutmanager.h"
 #include "qgsmapcanvas.h"
-#include <QToolButton>
-#include <QClipboard>
+#include "qgsfeatureaction.h"
+#include "qgsvectorlayerfeatureiterator.h"
+
 
 QgsLayerTreeLocatorFilter::QgsLayerTreeLocatorFilter( QObject *parent )
   : QgsLocatorFilter( parent )
@@ -146,6 +149,7 @@ void QgsActionLocatorFilter::searchActions( const QString &string, QWidget *pare
   }
 
   QRegularExpression extractFromTooltip( QStringLiteral( "<b>(.*)</b>" ) );
+  QRegularExpression newLineToSpace( QStringLiteral( "[\\s\\n\\r]+" ) );
 
   Q_FOREACH ( QAction *action, parent->actions() )
   {
@@ -164,6 +168,7 @@ void QgsActionLocatorFilter::searchActions( const QString &string, QWidget *pare
     searchText.replace( '&', QString() );
 
     QString tooltip = action->toolTip();
+    tooltip.replace( newLineToSpace, QStringLiteral( " " ) );
     QRegularExpressionMatch match = extractFromTooltip.match( tooltip );
     if ( match.hasMatch() )
     {
@@ -173,7 +178,12 @@ void QgsActionLocatorFilter::searchActions( const QString &string, QWidget *pare
     tooltip.replace( QStringLiteral( "…" ), QString() );
     searchText.replace( QStringLiteral( "..." ), QString() );
     searchText.replace( QStringLiteral( "…" ), QString() );
-    if ( searchText.trimmed().compare( tooltip.trimmed(), Qt::CaseInsensitive ) != 0 )
+    bool uniqueTooltip = searchText.trimmed().compare( tooltip.trimmed(), Qt::CaseInsensitive ) != 0;
+    if ( action->isChecked() )
+    {
+      searchText += QStringLiteral( " [%1]" ).arg( tr( "Active" ) );
+    }
+    if ( uniqueTooltip )
     {
       searchText += QStringLiteral( " (%1)" ).arg( tooltip.trimmed() );
     }
@@ -191,6 +201,10 @@ void QgsActionLocatorFilter::searchActions( const QString &string, QWidget *pare
   }
 }
 
+//
+// QgsActiveLayerFeaturesLocatorFilter
+//
+
 QgsActiveLayerFeaturesLocatorFilter::QgsActiveLayerFeaturesLocatorFilter( QObject *parent )
   : QgsLocatorFilter( parent )
 {
@@ -202,13 +216,14 @@ QgsActiveLayerFeaturesLocatorFilter *QgsActiveLayerFeaturesLocatorFilter::clone(
   return new QgsActiveLayerFeaturesLocatorFilter();
 }
 
-void QgsActiveLayerFeaturesLocatorFilter::prepare( const QString &string, const QgsLocatorContext & )
+void QgsActiveLayerFeaturesLocatorFilter::prepare( const QString &string, const QgsLocatorContext &context )
 {
-  if ( string.length() < 3 )
+  // Normally skip very short search strings, unless when specifically searching using this filter
+  if ( string.length() < 3 && !context.usingPrefix )
     return;
 
   bool allowNumeric = false;
-  double numericValue = string.toDouble( &allowNumeric );
+  double numericalValue = string.toDouble( &allowNumeric );
 
   QgsVectorLayer *layer = qobject_cast< QgsVectorLayer *>( QgisApp::instance()->activeLayer() );
   if ( !layer )
@@ -230,7 +245,7 @@ void QgsActiveLayerFeaturesLocatorFilter::prepare( const QString &string, const 
     }
     else if ( allowNumeric && field.isNumeric() )
     {
-      expressionParts << QStringLiteral( "%1 = %2" ).arg( QgsExpression::quotedColumnRef( field.name() ) ).arg( numericValue );
+      expressionParts << QStringLiteral( "%1 = %2" ).arg( QgsExpression::quotedColumnRef( field.name() ), QString::number( numericalValue, 'g', 17 ) );
     }
   }
 
@@ -244,6 +259,11 @@ void QgsActiveLayerFeaturesLocatorFilter::prepare( const QString &string, const 
 
   mLayerId = layer->id();
   mLayerIcon = QgsMapLayerModel::iconForLayer( layer );
+  mAttributeAliases.clear();
+  for ( int idx = 0; idx < layer->fields().size(); ++idx )
+  {
+    mAttributeAliases.append( layer->attributeDisplayName( idx ) );
+  }
 }
 
 void QgsActiveLayerFeaturesLocatorFilter::fetchResults( const QString &string, const QgsLocatorContext &, QgsFeedback *feedback )
@@ -261,14 +281,20 @@ void QgsActiveLayerFeaturesLocatorFilter::fetchResults( const QString &string, c
     mContext.setFeature( f );
 
     // find matching field content
-    Q_FOREACH ( const QVariant &var, f.attributes() )
+    int idx = 0;
+    const QgsAttributes attributes = f.attributes();
+    for ( const QVariant &var : attributes )
     {
       QString attrString = var.toString();
       if ( attrString.contains( string, Qt::CaseInsensitive ) )
       {
-        result.displayString = attrString;
+        if ( idx < mAttributeAliases.count() )
+          result.displayString = QStringLiteral( "%1 (%2)" ).arg( attrString, mAttributeAliases[idx] );
+        else
+          result.displayString = attrString;
         break;
       }
+      idx++;
     }
     if ( result.displayString.isEmpty() )
       continue; //not sure how this result slipped through...
@@ -291,11 +317,146 @@ void QgsActiveLayerFeaturesLocatorFilter::triggerResult( const QgsLocatorResult 
   QVariantList dataList = result.userData.toList();
   QgsFeatureId id = dataList.at( 0 ).toLongLong();
   QString layerId = dataList.at( 1 ).toString();
-  QgsVectorLayer *layer = qobject_cast< QgsVectorLayer *>( QgsProject::instance()->mapLayer( layerId ) );
+  QgsVectorLayer *layer = QgsProject::instance()->mapLayer<QgsVectorLayer *>( layerId );
   if ( !layer )
     return;
 
   QgisApp::instance()->mapCanvas()->zoomToFeatureIds( layer, QgsFeatureIds() << id );
+}
+
+//
+// QgsAllLayersFeaturesLocatorFilter
+//
+
+QgsAllLayersFeaturesLocatorFilter::QgsAllLayersFeaturesLocatorFilter( QObject *parent )
+  : QgsLocatorFilter( parent )
+{
+  setUseWithoutPrefix( false );
+}
+
+QgsAllLayersFeaturesLocatorFilter *QgsAllLayersFeaturesLocatorFilter::clone() const
+{
+  return new QgsAllLayersFeaturesLocatorFilter();
+}
+
+void QgsAllLayersFeaturesLocatorFilter::prepare( const QString &string, const QgsLocatorContext &context )
+{
+  // Normally skip very short search strings, unless when specifically searching using this filter
+  if ( string.length() < 3 && !context.usingPrefix )
+    return;
+
+  mPreparedLayers.clear();
+  const QMap<QString, QgsMapLayer *> layers = QgsProject::instance()->mapLayers();
+  for ( auto it = layers.constBegin(); it != layers.constEnd(); ++it )
+  {
+    QgsVectorLayer *layer = qobject_cast< QgsVectorLayer *>( it.value() );
+    if ( !layer || !layer->flags().testFlag( QgsMapLayer::Searchable ) )
+      continue;
+
+    QgsExpression expression( layer->displayExpression() );
+    QgsExpressionContext context;
+    context.appendScopes( QgsExpressionContextUtils::globalProjectLayerScopes( layer ) );
+    expression.prepare( &context );
+
+    QgsFeatureRequest req;
+    req.setSubsetOfAttributes( expression.referencedAttributeIndexes( layer->fields() ).toList() );
+    if ( !expression.needsGeometry() )
+      req.setFlags( QgsFeatureRequest::NoGeometry );
+    QString enhancedSearch = string;
+    enhancedSearch.replace( ' ', '%' );
+    req.setFilterExpression( QStringLiteral( "%1 ILIKE '%%2%'" )
+                             .arg( layer->displayExpression(), enhancedSearch ) );
+    req.setLimit( 30 );
+
+    std::shared_ptr<PreparedLayer> preparedLayer( new PreparedLayer() );
+    preparedLayer->expression = expression;
+    preparedLayer->context = context;
+    preparedLayer->layerId = layer->id();
+    preparedLayer->layerName = layer->name();
+    preparedLayer->featureSource.reset( new QgsVectorLayerFeatureSource( layer ) );
+    preparedLayer->request = req;
+    preparedLayer->layerIcon = QgsMapLayerModel::iconForLayer( layer );
+
+    mPreparedLayers.append( preparedLayer );
+  }
+}
+
+void QgsAllLayersFeaturesLocatorFilter::fetchResults( const QString &string, const QgsLocatorContext &, QgsFeedback *feedback )
+{
+  int foundInCurrentLayer;
+  int foundInTotal = 0;
+  QgsFeature f;
+
+  // we cannot used const loop since iterator::nextFeature is not const
+  for ( auto preparedLayer : qgis::as_const( mPreparedLayers ) )
+  {
+    foundInCurrentLayer = 0;
+    QgsFeatureIterator it = preparedLayer->featureSource->getFeatures( preparedLayer->request );
+    while ( it.nextFeature( f ) )
+    {
+      if ( feedback->isCanceled() )
+        return;
+
+      QgsLocatorResult result;
+      result.group = preparedLayer->layerName;
+
+      preparedLayer->context.setFeature( f );
+
+      result.displayString = preparedLayer->expression.evaluate( &( preparedLayer->context ) ).toString();
+
+      result.userData = QVariantList() << f.id() << preparedLayer->layerId;
+      result.icon = preparedLayer->layerIcon;
+      result.score = static_cast< double >( string.length() ) / result.displayString.size();
+
+      result.actions << QgsLocatorResult::ResultAction( OpenForm, tr( "Open form…" ) );
+      emit resultFetched( result );
+
+      foundInCurrentLayer++;
+      foundInTotal++;
+      if ( foundInCurrentLayer >= mMaxResultsPerLayer )
+        break;
+    }
+    if ( foundInTotal >= mMaxTotalResults )
+      break;
+  }
+}
+
+void QgsAllLayersFeaturesLocatorFilter::triggerResult( const QgsLocatorResult &result )
+{
+  triggerResultFromAction( result, NoEntry );
+}
+
+void QgsAllLayersFeaturesLocatorFilter::triggerResultFromAction( const QgsLocatorResult &result, const int actionId )
+{
+  QVariantList dataList = result.userData.toList();
+  QgsFeatureId fid = dataList.at( 0 ).toLongLong();
+  QString layerId = dataList.at( 1 ).toString();
+  QgsVectorLayer *layer = QgsProject::instance()->mapLayer<QgsVectorLayer *>( layerId );
+  if ( !layer )
+    return;
+
+  if ( actionId == OpenForm )
+  {
+    QgsFeature f;
+    QgsFeatureRequest request;
+    request.setFilterFid( fid );
+    bool fetched = layer->getFeatures( request ).nextFeature( f );
+    if ( !fetched )
+      return;
+    QgsFeatureAction action( tr( "Attributes changed" ), f, layer, QString(), -1, QgisApp::instance() );
+    if ( layer->isEditable() )
+    {
+      action.editFeature( false );
+    }
+    else
+    {
+      action.viewFeatureForm();
+    }
+  }
+  else
+  {
+    QgisApp::instance()->mapCanvas()->zoomToFeatureIds( layer, QgsFeatureIds() << fid );
+  }
 }
 
 //
@@ -355,13 +516,13 @@ void QgsSettingsLocatorFilter::fetchResults( const QString &string, const QgsLoc
 {
   QMap<QString, QMap<QString, QString>> matchingSettingsPagesMap;
 
-  QMap<QString, QString> optionsPagesMap = QgisApp::instance()->optionsPagesMap();
+  QMap<QString, int > optionsPagesMap = QgisApp::instance()->optionsPagesMap();
   for ( auto optionsPagesIterator = optionsPagesMap.constBegin(); optionsPagesIterator != optionsPagesMap.constEnd(); ++optionsPagesIterator )
   {
     QString title = optionsPagesIterator.key();
     if ( stringMatches( title, string ) || ( context.usingPrefix && string.isEmpty() ) )
     {
-      matchingSettingsPagesMap.insert( title + " (" + tr( "Options" ) + ")", settingsPage( QStringLiteral( "optionpage" ), optionsPagesIterator.value() ) );
+      matchingSettingsPagesMap.insert( title + " (" + tr( "Options" ) + ")", settingsPage( QStringLiteral( "optionpage" ), QString::number( optionsPagesIterator.value() ) ) );
     }
   }
 
@@ -401,8 +562,8 @@ void QgsSettingsLocatorFilter::fetchResults( const QString &string, const QgsLoc
 QMap<QString, QString> QgsSettingsLocatorFilter::settingsPage( const QString &type,  const QString &page )
 {
   QMap<QString, QString> returnPage;
-  returnPage.insert( "type", type );
-  returnPage.insert( "page", page );
+  returnPage.insert( QStringLiteral( "type" ), type );
+  returnPage.insert( QStringLiteral( "page" ), page );
   return returnPage;
 }
 
@@ -410,18 +571,19 @@ void QgsSettingsLocatorFilter::triggerResult( const QgsLocatorResult &result )
 {
 
   QMap<QString, QString> settingsPage = qvariant_cast<QMap<QString, QString>>( result.userData );
-  QString type = settingsPage.value( "type" );
-  QString page = settingsPage.value( "page" );
+  QString type = settingsPage.value( QStringLiteral( "type" ) );
+  QString page = settingsPage.value( QStringLiteral( "page" ) );
 
-  if ( type == "optionpage" )
+  if ( type == QLatin1String( "optionpage" ) )
   {
-    QgisApp::instance()->showOptionsDialog( QgisApp::instance(), page );
+    const int pageNumber = page.toInt();
+    QgisApp::instance()->showOptionsDialog( QgisApp::instance(), QString(), pageNumber );
   }
-  else if ( type == "projectpropertypage" )
+  else if ( type == QLatin1String( "projectpropertypage" ) )
   {
     QgisApp::instance()->showProjectProperties( page );
   }
-  else if ( type == "settingspage" )
+  else if ( type == QLatin1String( "settingspage" ) )
   {
     QgisApp::instance()->showSettings( page );
   }

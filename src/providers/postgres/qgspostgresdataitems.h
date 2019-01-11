@@ -22,6 +22,7 @@
 #include "qgspostgresconn.h"
 #include "qgsmimedatautils.h"
 #include "qgsvectorlayerexporter.h"
+#include "qgswkbtypes.h"
 
 class QgsPGRootItem;
 class QgsPGConnectionItem;
@@ -128,7 +129,7 @@ class QgsPGLayerItem : public QgsLayerItem
 
   public slots:
 #ifdef HAVE_GUI
-    void deleteLayer();
+    bool deleteLayer() override;
     void renameLayer();
     void truncateTable();
     void refreshMaterializedView();

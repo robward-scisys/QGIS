@@ -79,6 +79,9 @@ QList<QAction *> QgsMapLayerStyleGuiUtils::actionsUseStyle( QgsMapLayer *layer, 
 
 void QgsMapLayerStyleGuiUtils::addStyleManagerActions( QMenu *m, QgsMapLayer *layer )
 {
+  if ( ! layer )
+    return;
+
   m->addAction( actionAddStyle( layer, m ) );
   if ( layer->styleManager()->styles().count() > 1 )
     m->addAction( actionRemoveStyle( layer, m ) );
@@ -98,7 +101,7 @@ void QgsMapLayerStyleGuiUtils::addStyle()
     return;
 
   bool ok;
-  QString text = QInputDialog::getText( nullptr, tr( "New style" ),
+  QString text = QInputDialog::getText( nullptr, tr( "New Style" ),
                                         tr( "Style name:" ), QLineEdit::Normal,
                                         QStringLiteral( "new style" ), &ok );
   if ( !ok || text.isEmpty() )
@@ -146,7 +149,7 @@ void QgsMapLayerStyleGuiUtils::removeStyle()
   bool res = layer->styleManager()->removeStyle( layer->styleManager()->currentStyle() );
   if ( !res )
   {
-    QgsDebugMsg( "Failed to remove current style" );
+    QgsDebugMsg( QStringLiteral( "Failed to remove current style" ) );
   }
 }
 
@@ -163,7 +166,7 @@ void QgsMapLayerStyleGuiUtils::renameStyle()
   QString name = layer->styleManager()->currentStyle();
 
   bool ok;
-  QString text = QInputDialog::getText( nullptr, tr( "Rename style" ),
+  QString text = QInputDialog::getText( nullptr, tr( "Rename Style" ),
                                         tr( "Style name:" ), QLineEdit::Normal,
                                         name, &ok );
   if ( !ok )
