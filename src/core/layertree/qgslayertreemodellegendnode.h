@@ -24,7 +24,7 @@
 
 
 #include "qgis_core.h"
-#include "qgis.h"
+#include "qgis_sip.h"
 
 #include "qgsrasterdataprovider.h" // for QgsImageFetcher dtor visibility
 
@@ -86,6 +86,8 @@ class CORE_EXPORT QgsLayerTreeModelLegendNode : public QObject
 
     struct ItemContext
     {
+      //! Render context, if available
+      QgsRenderContext *context = nullptr;
       //! Painter
       QPainter *painter = nullptr;
       //! Top-left corner of the legend item

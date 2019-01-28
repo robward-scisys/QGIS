@@ -13,7 +13,7 @@ QWindow, QMainWindow, QWidget
 
 QWidget:item:hover
 {
-    background-color: @selection;
+    background-color: @hover;
     color: @text;
 }
 
@@ -51,6 +51,8 @@ QAbstractSpinBox {
     border-radius: 0.2em;
     background-color: @darkgradient;
     color:@itembackground;
+    selection-background-color: @selection;
+    selection-color: @itemdarkbackground;
 }
 
 QAbstractSpinBox::up-button {
@@ -99,16 +101,20 @@ QMenu::item:disabled
     padding: 0.2em 1.3em 0.2em 1.3em;
 }
 
-
 QMenu::item:selected
 {
     background-color: @selection;
     color: @text;
 }
 
+QMenu::item:checked
+{
+    text-decoration:underline;
+}
+
 QWidget:disabled
 {
-    color: #404040;
+    color: @itemalternativebackground;
     background-color: @background;
 }
 
@@ -121,6 +127,8 @@ QLineEdit, QTextEdit, QPlainTextEdit
     border-radius: 0.2em;
     background-color:@itembackground;
     color:@text;
+    selection-background-color: @selection;
+    selection-color: @itemdarkbackground;
 }
 
 QPushButton 
@@ -144,6 +152,7 @@ QToolButton
     background-color:@itembackground;
     color:@text;
 }
+
 QToolButton[popupMode="1"]
 {
     padding-right: 0.9em;
@@ -155,13 +164,13 @@ QToolButton::menu-button {
     border-radius: 0.2em;
     background:@itemdarkbackground;
 }
-QToolButton::hover, QToolButton::menu-button::hover
+QToolButton:hover, QToolButton::menu-button:hover
 {
     border-width: 1px;
     border-color: #1e1e1e;
     border-style: solid;
     border-radius: 0.2em;
-    background-color: none;
+    background-color: transparent;
 }
 QToolButton:checked
 {
@@ -179,12 +188,21 @@ QToolBar QToolButton, QToolButton::menu-button
     background-color: none;
 }
 
+QPushButton:hover, QToolButton:hover {
+    background-color: @itemalternativebackground;
+}
+
+QPushButton:pressed, QToolButton:pressed {
+    background-color: @darkalternativegradient;
+}
+
 /* ==================================================================================== */
 /* COMBO BOX                                                                            */
 /* ==================================================================================== */
 
 QComboBox {
     selection-background-color: @selection;
+    selection-color: @itemdarkbackground;
     background-color: @darkgradient;
     color:@itembackground;
     border-style: solid;
@@ -194,8 +212,8 @@ QComboBox {
 }
 
 
-QComboBox:hover,QPushButton:hover,QToolButton:hover,QAbstractSpinBox:hover {
-    background-color: QLinearGradient( x1: 0, y1: 0, x2: 0, y2: 1,stop: 0 #565656,stop: 1 #464646);
+QComboBox:hover, QAbstractSpinBox:hover {
+    background-color: @darkalternativegradient;
 }
 
 QComboBox:on {
@@ -208,6 +226,7 @@ QComboBox:on {
         stop: 0.9   #414141,
         stop: 1     #444);
     selection-background-color: @selection;
+    selection-color: @itemdarkbackground;
 }
 
 QComboBox:editable {
@@ -252,6 +271,7 @@ QComboBox:item:selected {
 QComboBox:item:checked {
     padding-left: 1.3em;
     height:1.25em;
+    text-decoration:underline;
 }
 
 QLineEdit:focus
@@ -270,15 +290,15 @@ QTextEdit:focus
 /* ==================================================================================== */
 
 QScrollBar:horizontal {
-    background-color: #333;
+    background-color: @itemdarkbackground;
     height: 0.5em;
     margin: 0px;
     padding: 0px;
 }
 
 QScrollBar::handle:horizontal {
-    border: 1px solid #111;
-    background: @itembackground;
+    border: 1px solid @itemdarkbackground;
+    background: @background;
 }
 
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal,
@@ -288,14 +308,14 @@ QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
 }
 
 QScrollBar:vertical {
-    background-color: #333;
+    background-color: @itemdarkbackground;
     width: 0.5em;
     margin: 0;
 }
 
 QScrollBar::handle:vertical {
-    border: 1px solid #111;
-    background: @itembackground;
+    border: 1px solid @itemdarkbackground;
+    background: @background;
 }
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
@@ -415,15 +435,19 @@ QMenu::separator
 
 QProgressBar
 {
-    border: 2px solid grey;
+    height: 1.3em;
+    border-width: 1px;
+    border-color: @itemdarkbackground;
+    border-style: solid;
+    border-radius: 0.2em;
     text-align: center;
+    
 }
 
 QProgressBar::chunk
 {
     background-color: @selection;
     width: 3px;
-    margin: 1px;
 }
 
 QTabWidget::pane {
@@ -479,7 +503,7 @@ QGroupBox::indicator:hover,
 QCheckBox::indicator:hover,
 QRadioButton::indicator:hover
 {
-    border: 1px solid @selection;
+    border: 1px solid @hover;
 }
 
 /* ==================================================================================== */
@@ -544,26 +568,32 @@ QCheckBox::indicator:checked {
 /* SLIDER                                                                                */
 /* ==================================================================================== */
 
-QSlider::groove:horizontal,
-QSlider::groove:vertical  {
+QSlider::groove:horizontal {
     border: 1px solid @itemdarkbackground;
     height: 0.4em; /* the groove expands to the size of the slider by default. by giving it a height, it has a fixed size */
-    background-color: @itembackground;
+    background-color: @itemdarkbackground;
+    margin: 2px 0;
+}
+
+QSlider::groove:vertical  {
+    border: 1px solid @itemdarkbackground;
+    width: 0.4em; /* the groove expands to the size of the slider by default. by giving it a height, it has a fixed size */
+    background-color: @itemdarkbackground;
     margin: 2px 0;
 }
 
 QSlider::handle:horizontal {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #b4b4b4, stop:1 #8f8f8f);
-    border: 1px solid itemdarkbackground;
-    width: 1em;
+    background: @gradient;
+    border: 1px solid @itemdarkbackground;
+    width: 1.3em;
     margin: -2px 0; /* handle is placed by default on the contents rect of the groove. Expand outside the groove */
     border-radius: 0.15em;
 }
 QSlider::handle:vertical {
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #b4b4b4, stop:1 #8f8f8f);
-    border: 1px solid itemdarkbackground;
-    height: 1em;
-    margin: -2px 0; /* handle is placed by default on the contents rect of the groove. Expand outside the groove */
+    background: @gradient;
+    border: 1px solid @itemdarkbackground;
+    height: 1.3em;
+    margin: 0 -2px; /* handle is placed by default on the contents rect of the groove. Expand outside the groove */
     border-radius: 0.15em;
 }
 
@@ -579,8 +609,8 @@ QAbstractItemView, QListView
   border: none;
   border-radius: 0.15em;
   padding: 1px;
-  selection-color: @text;
   selection-background-color: @selection;
+  selection-color: @itemdarkbackground;
 }
 
 QAbstractItemView::selected, QListView::selected {
@@ -604,8 +634,8 @@ QTreeView::item, QTreeView::branch {
 }
 
 QTreeView::item:hover, QTreeView::branch:hover {
-    background-color: @toggleoff;
-    color: @itembackground;
+    background-color: @c7c7c7;
+    color: @text;
 }
 
 QTreeView::item:selected, QTreeView::branch:selected {
@@ -655,6 +685,8 @@ QTreeView#viewRules::indicator:checked
 
 QTableView {
     color: @text;
+    selection-background-color: @selection;
+    selection-color: @itemdarkbackground;
 }
 
 QHeaderView::section {
@@ -674,10 +706,51 @@ QgsColorButton, QgsColorRampButton, QgsSymbolButton, QgsFontButton {
     color:@itembackground;
 }
 
+QgsColorButton:hover, QgsColorRampButton:hover, QgsSymbolButton:hover, QgsFontButton:hover {
+    background-color: @darkalternativegradient;
+    color:@itembackground;
+}
+
 QgsMessageBar QLabel, QgsMessageBar QTextEdit, QMessageBar QToolButton {
     background: transparent;
     border: none;
     padding: 0px;
+}
+
+QgsMessageBar QScrollBar:vertical {
+    border-left:1px solid #000000;
+    border-right:1px solid #000000;
+    background-color: rgba(0,0,0,0);
+    width: 0.7em;
+    margin: 0.7em 0px 0.7em 0px;
+}
+
+QgsMessageBar QScrollBar::add-line:vertical {
+    height: 0.7em;
+    border:1px solid #000000;
+    background-color: rgba(0,0,0,0);
+    color: #000000;
+    subcontrol-position: bottom;
+    subcontrol-origin: margin;
+} 
+
+QgsMessageBar QScrollBar::sub-line:vertical {
+    height: 0.7em;
+    border:1px solid #000000;
+    background-color: rgba(0,0,0,0);
+    color: #000000;
+    subcontrol-position: top;
+    subcontrol-origin: margin;
+}
+
+QgsMessageBar QScrollBar::up-arrow:vertical {
+    height: 0.7em;
+    image: url(@theme_path/icons/arrow-up.svg);
+}
+
+QgsMessageBar QScrollBar::down-arrow:vertical {
+    height: 0.7em;
+    image: url(@theme_path/icons/arrow-down.svg);
 }
 
 QgsPropertyOverrideButton {

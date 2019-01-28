@@ -27,9 +27,11 @@
 #include <QMap>
 #include <QHash>
 #include <QReadWriteLock>
+#include <QExplicitlySharedDataPointer>
+#include <QObject>
 
 //qgis includes
-#include "qgis.h"
+#include "qgis_sip.h"
 #include "qgsunittypes.h"
 #include "qgsrectangle.h"
 #include "qgssqliteutils.h"
@@ -191,6 +193,7 @@ class CORE_EXPORT QgsCoordinateReferenceSystem
     Q_GADGET
 
     Q_PROPERTY( QgsUnitTypes::DistanceUnit mapUnits READ mapUnits )
+    Q_PROPERTY( bool isGeographic READ isGeographic )
 
   public:
 

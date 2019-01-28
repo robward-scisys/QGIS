@@ -22,7 +22,6 @@
 
 #include "qgis_core.h"
 #include "qgsmaplayer.h"
-#include "qgsrendercontext.h"
 #include "qgsmeshdataprovider.h"
 #include "qgsmeshrenderersettings.h"
 
@@ -30,6 +29,7 @@ class QgsMapLayerRenderer;
 struct QgsMeshLayerRendererCache;
 class QgsSymbol;
 class QgsTriangularMesh;
+class QgsRenderContext;
 struct QgsMesh;
 
 /**
@@ -138,13 +138,39 @@ class CORE_EXPORT QgsMeshLayer : public QgsMapLayer
     //! Returns the provider type for this layer
     QString providerType() const;
 
-    //! Returns native mesh (nullptr before rendering)
+    /**
+     * Returns native mesh (nullptr before rendering)
+     *
+     * \note Not available in Python bindings
+     */
     QgsMesh *nativeMesh() SIP_SKIP;
 
-    //! Returns triangular mesh (nullptr before rendering)
+    /**
+     * Returns native mesh (nullptr before rendering)
+     *
+     * \note Not available in Python bindings
+     */
+    const QgsMesh *nativeMesh() const SIP_SKIP;
+
+    /**
+     * Returns triangular mesh (nullptr before rendering)
+     *
+     * \note Not available in Python bindings
+     */
     QgsTriangularMesh *triangularMesh() SIP_SKIP;
 
-    //! Returns native mesh (nullptr before rendering)
+    /**
+     * Returns triangular mesh (nullptr before rendering)
+     *
+     * \note Not available in Python bindings
+     */
+    const QgsTriangularMesh *triangularMesh() const SIP_SKIP;
+
+    /**
+     * Returns native mesh (nullptr before rendering)
+     *
+     * \note Not available in Python bindings
+     */
     QgsMeshLayerRendererCache *rendererCache() SIP_SKIP;
 
     //! Returns renderer settings
@@ -206,6 +232,7 @@ class CORE_EXPORT QgsMeshLayer : public QgsMapLayer
   private:
     void fillNativeMesh();
     void assignDefaultStyleToDatasetGroup( int groupIndex );
+    void setDefaultRendererSettings();
 
   private slots:
     void onDatasetGroupsAdded( int count );
@@ -213,9 +240,6 @@ class CORE_EXPORT QgsMeshLayer : public QgsMapLayer
   private:
     //! Pointer to data provider derived from the abastract base class QgsMeshDataProvider
     QgsMeshDataProvider *mDataProvider = nullptr;
-
-    //! Data provider key
-    QString mProviderKey;
 
     //! Pointer to native mesh structure, used as cache for rendering
     std::unique_ptr<QgsMesh> mNativeMesh;

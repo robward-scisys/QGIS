@@ -16,7 +16,7 @@
 #define QGSPROPERTY_H
 
 #include "qgis_core.h"
-#include "qgis.h"
+#include "qgis_sip.h"
 #include "qgsproperty_p.h"
 #include "qgsexpression.h"
 #include "qgsexpressioncontext.h"
@@ -351,6 +351,13 @@ class CORE_EXPORT QgsProperty
      * expression context.
      */
     QSet< QString > referencedFields( const QgsExpressionContext &context = QgsExpressionContext() ) const;
+
+    /**
+     * Returns true if the property is set to a linked project color.
+     *
+     * \since QGIS 3.6
+     */
+    bool isProjectColor() const;
 
     /**
      * Calculates the current value of the property, including any transforms which are set for the property

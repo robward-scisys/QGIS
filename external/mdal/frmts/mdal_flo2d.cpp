@@ -73,13 +73,14 @@ static double getDouble( const std::string &val )
 void MDAL::DriverFlo2D::addStaticDataset(
   bool isOnVertices,
   std::vector<double> &vals,
-  const std::string &name,
+  const std::string &groupName,
   const std::string &datFileName )
 {
   std::shared_ptr<DatasetGroup> group = std::make_shared< DatasetGroup >(
+                                          name(),
                                           mMesh.get(),
                                           datFileName,
-                                          name
+                                          groupName
                                         );
   group->setIsOnVertices( isOnVertices );
   group->setIsScalar( true );
@@ -108,7 +109,7 @@ void MDAL::DriverFlo2D::parseCADPTSFile( const std::string &datFileName, std::ve
   // CADPTS.DAT - COORDINATES OF CELL CENTERS (ELEM NUM, X, Y)
   while ( std::getline( cadptsStream, line ) )
   {
-    std::vector<std::string> lineParts = MDAL::split( line, " ", MDAL::SplitBehaviour::SkipEmptyParts );
+    std::vector<std::string> lineParts = MDAL::split( line, ' ' );
     if ( lineParts.size() != 3 )
     {
       throw MDAL_Status::Err_UnknownFormat;
@@ -139,7 +140,7 @@ void MDAL::DriverFlo2D::parseFPLAINFile( std::vector<double> &elevations,
 
   while ( std::getline( fplainStream, line ) )
   {
-    std::vector<std::string> lineParts = MDAL::split( line, " ", MDAL::SplitBehaviour::SkipEmptyParts );
+    std::vector<std::string> lineParts = MDAL::split( line, ' ' );
     if ( lineParts.size() != 7 )
     {
       throw MDAL_Status::Err_UnknownFormat;
@@ -186,6 +187,7 @@ void MDAL::DriverFlo2D::parseTIMDEPFile( const std::string &datFileName, const s
   size_t face_idx = 0;
 
   std::shared_ptr<DatasetGroup> depthDsGroup = std::make_shared< DatasetGroup >(
+        name(),
         mMesh.get(),
         datFileName,
         "Depth"
@@ -195,6 +197,7 @@ void MDAL::DriverFlo2D::parseTIMDEPFile( const std::string &datFileName, const s
 
 
   std::shared_ptr<DatasetGroup> waterLevelDsGroup = std::make_shared< DatasetGroup >(
+        name(),
         mMesh.get(),
         datFileName,
         "Water Level"
@@ -203,6 +206,7 @@ void MDAL::DriverFlo2D::parseTIMDEPFile( const std::string &datFileName, const s
   waterLevelDsGroup->setIsScalar( true );
 
   std::shared_ptr<DatasetGroup> flowDsGroup = std::make_shared< DatasetGroup >(
+        name(),
         mMesh.get(),
         datFileName,
         "Velocity"
@@ -216,7 +220,7 @@ void MDAL::DriverFlo2D::parseTIMDEPFile( const std::string &datFileName, const s
 
   while ( std::getline( inStream, line ) )
   {
-    std::vector<std::string> lineParts = MDAL::split( line, " ", MDAL::SplitBehaviour::SkipEmptyParts );
+    std::vector<std::string> lineParts = MDAL::split( line, ' ' );
     if ( lineParts.size() == 1 )
     {
       time = MDAL::toDouble( line );
@@ -299,7 +303,7 @@ void MDAL::DriverFlo2D::parseDEPTHFile( const std::string &datFileName, const st
   {
     if ( vertex_idx == nVertices ) throw MDAL_Status::Err_IncompatibleMesh;
 
-    std::vector<std::string> lineParts = MDAL::split( line, " ", MDAL::SplitBehaviour::SkipEmptyParts );
+    std::vector<std::string> lineParts = MDAL::split( line, ' ' );
     if ( lineParts.size() != 4 )
     {
       throw MDAL_Status::Err_UnknownFormat;
@@ -344,7 +348,7 @@ void MDAL::DriverFlo2D::parseVELFPVELOCFile( const std::string &datFileName )
     {
       if ( vertex_idx == nVertices ) throw MDAL_Status::Err_IncompatibleMesh;
 
-      std::vector<std::string> lineParts = MDAL::split( line, " ", MDAL::SplitBehaviour::SkipEmptyParts );
+      std::vector<std::string> lineParts = MDAL::split( line, ' ' );
       if ( lineParts.size() != 4 )
       {
         throw MDAL_Status::Err_UnknownFormat;
@@ -374,7 +378,7 @@ void MDAL::DriverFlo2D::parseVELFPVELOCFile( const std::string &datFileName )
     {
       if ( vertex_idx == nVertices ) throw MDAL_Status::Err_IncompatibleMesh;
 
-      std::vector<std::string> lineParts = MDAL::split( line, " ", MDAL::SplitBehaviour::SkipEmptyParts );
+      std::vector<std::string> lineParts = MDAL::split( line, ' ' );
       if ( lineParts.size() != 4 )
       {
         throw MDAL_Status::Err_UnknownFormat;
@@ -486,6 +490,7 @@ void MDAL::DriverFlo2D::createMesh( const std::vector<CellCenter> &cells, double
 
   mMesh.reset(
     new MemoryMesh(
+      name(),
       vertices.size(),
       faces.size(),
       4, //maximum quads
@@ -567,6 +572,7 @@ bool MDAL::DriverFlo2D::parseHDF5Datasets( const std::string &datFileName )
 
     // Create dataset now
     std::shared_ptr<DatasetGroup> ds = std::make_shared< DatasetGroup >(
+                                         name(),
                                          mMesh.get(),
                                          datFileName,
                                          grpName
@@ -630,7 +636,7 @@ MDAL::DriverFlo2D::DriverFlo2D()
       "FLO2D",
       "Flo2D",
       "*.nc",
-      DriverType::CanReadMeshAndDatasets )
+      Capability::ReadMesh )
 {
 
 }
